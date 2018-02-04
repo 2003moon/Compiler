@@ -19,12 +19,12 @@ public class scanner {
         id = -1;
         identToId = new HashMap<String,Integer>();
         idToIdent = new HashMap<Integer, String>();
-        identToId.put("InputNum",0);
-        identToId.put("OutputNewLine",1);
-        identToId.put("OutputNum",2);
-        idToIdent.put(0,"InputNum");
-        idToIdent.put(1,"OutputNewLine");
-        idToIdent.put(2,"OutputNum");
+        identToId.put("InputNum",1);
+        identToId.put("OutputNewLine",2);
+        identToId.put("OutputNum",3);
+        idToIdent.put(1,"InputNum");
+        idToIdent.put(2,"OutputNewLine");
+        idToIdent.put(3,"OutputNum");
         rd = new reader();
         rd.openfile(path);
         currchar = rd.getNextChar();
@@ -183,6 +183,10 @@ public class scanner {
     }
     public String getIdent(){
         return  idToIdent.get(id);
+    }
+
+    public int getIdentId(){
+        return id;
     }
 
     public int getVal(){

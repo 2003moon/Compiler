@@ -33,7 +33,7 @@ public class reader {
         currLine = null;
     }
 
-    public Character getNextChar() throws IOException{
+    public Character getNextChar(){
 
         if(currLine == null){
             return '~';//indicate the end of a file

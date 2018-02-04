@@ -1,6 +1,5 @@
 package util;
 
-import sun.tools.java.Identifier;
 
 public enum Token {
     /**keyword**/
