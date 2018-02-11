@@ -73,4 +73,31 @@ public enum Opcode {
         }
         return null;
     }
+
+    public static Opcode tokenToOp(Token tk){
+        switch (tk) {
+            case PLUS:
+                return add;
+            case MUL:
+                return mul;
+            case MINUS:
+                return sub;
+            case DIV:
+                return div;
+            case EQ:
+                return bne;
+            case LE:
+                return blt;
+            case LEQ:
+                return ble;
+            case GT:
+                return bgt;
+            case GEQ:
+                return bge;
+            case NEQ:
+                return bne;
+
+        }
+        return null;
+    }
 }

@@ -3,7 +3,7 @@ package util;
 
 public enum Token {
     /**keyword**/
-    LET, CALL, IF, THEN, FI, WHILE, DO, OD, RETURN, VAR, ARRAY, FUNCTION, PROCEDURE, MAIN,
+    LET, CALL, IF, THEN, FI, WHILE, DO, OD, RETURN, VAR, ARRAY, FUNCTION, PROCEDURE, MAIN,ELSE,
 
     /** designator **/
     DESIGN, //<-
@@ -35,6 +35,8 @@ public enum Token {
                 return CALL;
             case "if":
                 return IF;
+            case "else":
+                return ELSE;
             case "then":
                 return THEN;
             case "fi":

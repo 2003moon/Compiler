@@ -13,49 +13,49 @@ public class parser {
     private Token currToken;
     private IcGenerator icGen;
     private scanner sc;
+    private int FP;
 
     public parser(String path) throws IOException{
         sc = new scanner(path);
         icGen = new IcGenerator();
+        FP = 0;
         next();
     }
 
-    public void parse() throws NonDeclaredException, NotExpectedException, IOException{
-        computation();
+    public void parse(CFG cfg) throws NonDeclaredException, NotExpectedException, IOException{
+        computation(cfg);
     }
 
-    private void computation() throws NonDeclaredException, NotExpectedException, IOException{
+    private void computation(CFG cfg) throws NonDeclaredException, NotExpectedException, IOException{
         if(currToken!=Token.MAIN){
             throw new NotExpectedException("MAIN is expected");
         }
         next();
-        varDecl();
+        varDecl(cfg);
+        next();
         funcDecl();
+        next();
         if(currToken!= Token.LEFT_BRACE){
             throw new NotExpectedException("{ is expected");
         }
         next();
-        statSequence();
+        statSequence(cfg.getBlock(cfg.getFirstBB()),cfg);
         if (currToken!=Token.RIGHT_BRACE){
             throw new NotExpectedException("} is expected");
         }
 
     }
 
-    private void varDecl() throws NotExpectedException, IOException{
+    private void varDecl(CFG currcfg) throws NotExpectedException, IOException{
         if(!typeDecl()){
             return;
         }
         if(currToken!=Token.IDENT){
             throw new NotExpectedException("ident is expected");
         }
-        CFG currcfg = icGen.getCfg(icGen.getCurrcfg());
         while(currToken == Token.IDENT){
             int address = sc.getIdentId();
-            boolean global = icGen.isGlobal();
-            Result x = new Result(Result.Type.variable, address, global);
-            x.setVersion(0);
-            currcfg.addVarInfo(x);
+            currcfg.addVar(address);
             next();
             if(currToken != Token.COMMA){
                 break;
@@ -68,7 +68,6 @@ public class parser {
         if(currToken!=Token.SEMICOMA){
             throw new NotExpectedException("; is expected");
         }
-        next();
     }
 
     private boolean typeDecl() throws NotExpectedException, IOException{
@@ -128,7 +127,7 @@ public class parser {
 
         CFG cfg = icGen.getCfg(funcid);
         while(currToken==Token.IDENT){
-            Result x = new Result(Result.Type.variable, sc.getIdentId(),false);
+            Result x = new Result(Result.Type.variable, sc.getIdentId());
             cfg.addParam(x);
             next();
             if(currToken!=Token.COMMA){
@@ -144,25 +143,25 @@ public class parser {
         }
     }
     private void funcBody(int funcid)throws NonDeclaredException, NotExpectedException, IOException{
-        icGen.setCurrcfg(funcid);
-        varDecl();
+        CFG cfg = icGen.getCfg(funcid);
+        varDecl(cfg);
+        next();
         if (currToken != Token.LEFT_BRACE){
             throw new NotExpectedException("{ is expected");
         }
         next();
-        statSequence();
+        statSequence(cfg.getBlock(cfg.getFirstBB()), cfg);
         if (currToken!= Token.RIGHT_BRACE){
             throw new NotExpectedException("{ is expected");
         }
-        next();
     }
 
-    private void statSequence()throws NonDeclaredException, NotExpectedException, IOException{
+    private void statSequence(BasicBlock bb, CFG cfg)throws NonDeclaredException, NotExpectedException, IOException{
         if(!isStatement()){
             throw new NotExpectedException("statement is expected");
         }
         while(isStatement()){
-            statement();
+            statement(bb,cfg);
             next();
             if(currToken !=Token.SEMICOMA){
                 break;
@@ -176,65 +175,115 @@ public class parser {
                 || currToken == Token.WHILE || currToken == Token.RETURN;
     }
 
-    private Result statement() throws NonDeclaredException, NotExpectedException, IOException{
+    private void statement(BasicBlock bb, CFG cfg) throws NonDeclaredException, NotExpectedException, IOException{
         Result x = null;
         if(currToken == Token.LET){
             next();
-            x = assignment();
+            x = assignment(bb, cfg);
         }else if (currToken == Token.CALL){
             next();
-            x = funcCall();
+            int funcid = sc.getIdentId();
+            if(funcid == 1){
+                x = icGen.combine(Opcode.read, null, null,  bb);
+            }else if (funcid == 2){
+                next();
+                x = new Result(Result.Type.variable,sc.getIdentId());
+                x = icGen.combine(Opcode.write, x, null, bb);
+            }else if (funcid == 3){
+                icGen.combine(Opcode.writeNL,x, null, bb);
+            }else{
+                CFG func = icGen.getCfg(funcid);
+                x = funcCall(func);
+                icGen.combine(Opcode.bra, x, null, bb);
+            }
+            next();
         }else if (currToken == Token.IF){
-
+           x = ifStatement(bb, cfg);
+           Instruction last = icGen.getInstruction(bb.getLastInstr());
+           last.updateOp(x);
+           next();
         }else if (currToken == Token.WHILE){
-
+            if(bb.getFirstInstr()!=-1){
+                int newid = cfg.createBB();
+                BasicBlock newbb = cfg.getBlock(newid);
+                bb.link(newbb);
+                bb = newbb;
+            }
+            next();
+            x = whileStatement(bb,cfg);
+            Instruction last = icGen.getInstruction(bb.getLastInstr());
+            last.updateOp(x);
+            bb = cfg.getBlock(x.getBb_id());
+            next();
         }else{
             next();
-            x = expression();
+            x = expression(bb);
         }
-        return  x;
     }
 
+    private void relation(BasicBlock bb) throws NonDeclaredException, NotExpectedException, IOException{
+        Result x = expression(bb);
+        if(!isRelOp(currToken)){
+            throw new NotExpectedException("relOp is expected");
+        }
+        Token relTk = currToken;
+        Opcode op = Opcode.tokenToOp(currToken);
+        next();
+        Result y = expression(bb);
+        y = icGen.combine(Opcode.cmp,x,y,bb);
+        if(relTk == Token.EQ){
+            icGen.combine(Opcode.bne, y, null, bb);
+        }else if(relTk == Token.NEQ){
+            icGen.combine(Opcode.beq,y, null, bb);
+        }else if (relTk == Token.LE){
+            icGen.combine(Opcode.bge, y, null, bb);
+        }else if (relTk == Token.LEQ){
+            icGen.combine(Opcode.blt, y, null, bb);
+        }else if (relTk == Token.GT){
+            icGen.combine(Opcode.ble, y, null, bb);
+        }else if (relTk == Token.GEQ){
+            icGen.combine(Opcode.ble, y, null, bb);
+        }
+    }
 
-    private Result designator() throws NonDeclaredException,NotExpectedException, IOException{
+    private boolean isRelOp(Token tk){
+        return tk == Token.EQ || tk == Token.NEQ || tk == Token.LE
+                || tk == Token.LEQ || tk == Token.GT || tk == Token.GEQ;
+    }
+
+    private Result designator(BasicBlock currbb, CFG cfg) throws NonDeclaredException,NotExpectedException, IOException{
         if(currToken!=Token.IDENT){
-            return null;
+            throw new NotExpectedException("IDENT is expected");
         }
         int baseaddr = sc.getIdentId();
-        CFG cfg = icGen.getCfg(icGen.getCurrcfg());
+        if(!cfg.isDeclared(baseaddr)){
+            throw new NonDeclaredException(sc.getIdent()+"is not declared");
+        }
+        next();
         Result x = null, y = null;
-        if(!cfg.getVersionMap().containsKey(baseaddr)){
-            throw new NonDeclaredException(sc.getIdent()+" is not declared");
-        }
-
-
         if(currToken != Token.LEFT_BRACKET){
-            x = new Result(Result.Type.variable, baseaddr, icGen.isGlobal());
-            x.setVersion(cfg.getVersion(baseaddr));
-            return x;
-        }
-
-        Result width = new Result(Result.Type.constant,4);
-        while(currToken == Token.LEFT_BRACKET){
-            next();
-            y = expression();
-            if(currToken != Token.RIGHT_BRACKET){
-                throw new NotExpectedException("] is expected");
+            x = new Result(Result.Type.variable, baseaddr);
+        }else{
+            Result width = new Result(Result.Type.constant,4);
+            Result base = new Result(Result.Type.constant,baseaddr);
+            while(currToken == Token.LEFT_BRACKET){
+                next();
+                y = expression(currbb);
+                if(currToken != Token.RIGHT_BRACKET){
+                    throw new NotExpectedException("] is expected");
+                }
+                y = icGen.combine(Opcode.mul, width, y,currbb);
+                base = icGen.combine(Opcode.add, base, y, currbb);
+                next();
             }
-            y = icGen.combine(Opcode.mul, width, y);
-            if(x!=null){
-                x = icGen.combine(Opcode.add,x,y);
-            }else{
-                x = y;
-            }
-            next();
+            x = new Result(Result.Type.constant,FP);
+            x = icGen.combine(Opcode.adda,x,base,currbb);
+            x.isArray = true;
         }
-        Result base = new Result(Result.Type.constant,baseaddr);
-        x = icGen.combine(Opcode.adda,x,base);
         return x;
     }
-    private Result expression()throws NonDeclaredException, NotExpectedException, IOException{
-        Result x = term();
+    private Result expression(BasicBlock bb)throws NonDeclaredException, NotExpectedException, IOException{
+        Result x = term(bb);
         while(currToken==Token.PLUS||currToken==Token.MINUS){
             Opcode op = null;
             if(currToken==Token.PLUS){
@@ -243,16 +292,16 @@ public class parser {
                 op = Opcode.sub;
             }
             next();
-            Result y = term();
-            x = icGen.combine(op,x,y);
+            Result y = term(bb);
+            x = icGen.combine(op,x,y,bb);
             next();
         }
         return x;
     }
 
 
-    private Result term() throws NonDeclaredException,  NotExpectedException, IOException{
-        Result x = factor();
+    private Result term(BasicBlock bb) throws NonDeclaredException,  NotExpectedException, IOException{
+        Result x = factor(bb);
         while(currToken==Token.MUL||currToken==Token.DIV){
             Opcode op = null;
             if(currToken == Token.MUL){
@@ -261,13 +310,13 @@ public class parser {
                 op = Opcode.div;
             }
             next();
-            Result y = factor();
-            x = icGen.combine(op,x,y);
+            Result y = factor(bb);
+            x = icGen.combine(op,x,y,bb);
         }
         return  x;
     }
 
-    private Result factor() throws NonDeclaredException, NotExpectedException, IOException{
+    private Result factor(BasicBlock bb) throws NonDeclaredException, NotExpectedException, IOException{
         Result x = null;
         if(currToken==Token.NUMBER){
             x = new Result(Result.Type.constant,sc.getVal());
@@ -276,68 +325,119 @@ public class parser {
         }
         if(currToken == Token.LEFT_PAR){
             next();
-            x = expression();
+            x = expression(bb);
             next();
             if(currToken!=Token.RIGHT_PAR){
                 throw new NotExpectedException(") is expected");
             }
             return  x;
         }
-        x = designator();
+        CFG cfg = icGen.getCfg(bb.getCfgid());
+        x = designator(bb,cfg);
         if(x == null){
-            x = funcCall();
+            x = funcCall(cfg);
         }
         return  x;
     }
 
-    private Result funcCall() throws NonDeclaredException, NotExpectedException, IOException{
+    private Result funcCall(CFG function) throws NonDeclaredException, NotExpectedException, IOException{
         Result x = null, y = null;
-        int funcid = sc.getIdentId();
-        if(funcid == 1){
-            x = icGen.combine(Opcode.read, x, y);
-        }else if (funcid == 2){
-            next();
-            x = new Result(Result.Type.variable,sc.getIdentId(),icGen.isGlobal());
-            x = icGen.combine(Opcode.write, x, y);
-        }else if (funcid == 3){
-            icGen.combine(Opcode.writeNL,x, y);
-        }else{
-            x = new Result(Result.Type.branch, funcid);
-            icGen.combine(Opcode.bra, x, y);
-            next();
-            if (currToken == Token.LEFT_PAR){
-                next();
-                y = expression();
-                int index = 0;
-                while(y!= null){
-                    icGen.passParam(funcid, index,y);
-                    index++;
-                    next();
-                    if (currToken!=Token.COMMA){
-                        break;
-                    }
-                    next();
-                    y = expression();
-                }
+        BasicBlock firstbb = function.getBlock(function.getFirstBB());
+        if (function.getParameters().size() != 0) {
+            int temp = function.createBB();
+            BasicBlock tempBB = function.getBlock(temp);
+            ArrayList<Result> params = function.getParameters();
+            for (int i = 0; i < params.size(); i++) {
+                y = expression(tempBB);
+                icGen.combine(Opcode.move, y, params.get(i), tempBB);
             }
+            Instruction tempLast = icGen.getInstruction(tempBB.getLastInstr());
+            tempLast.next = firstbb.getFirstInstr();
+            x = new Result(Result.Type.instruction, tempBB.getFirstInstr());
+        }else{
+            x = new Result(Result.Type.instruction,firstbb.getFirstInstr());
         }
         return x;
     }
 
-    private Result assignment() throws NonDeclaredException, NotExpectedException, IOException{
+    private Result assignment(BasicBlock bb, CFG cfg) throws NonDeclaredException, NotExpectedException, IOException{
         Result x = null, y = null;
-        x = designator();
-        if(x == null){
-            throw new NotExpectedException("designator is expected");
-        }
+        x = designator(bb, cfg);
+        next();
         if(currToken!=Token.DESIGN){
             throw new NotExpectedException("<- is expected");
         }
-        y = expression();
-        x = icGen.combine(Opcode.move, y, x);
+        y = expression(bb);
+        if(x.isArray){
+            x = icGen.combine(Opcode.store, y, x,bb);
+        }else{
+            x = icGen.combine(Opcode.move, y, x, bb);
+        }
         return x;
     }
 
+    private Result ifStatement(BasicBlock currBB, CFG currCFG)throws NonDeclaredException, NotExpectedException, IOException{
+        Result x = null;
+        relation(currBB);
+        int joinid = currCFG.createBB();
+        BasicBlock joinbb = currCFG.getBlock(joinid);
+        joinbb.setSymbolTable(currBB.getSymbolTable());
+        next();
+        if (currToken!=Token.THEN){
+            throw new NotExpectedException("THEN is expected");
+        }
+        next();
+        Instruction last = icGen.getInstruction(currBB.getLastInstr());
+
+        int newthenid = currCFG.createBB();
+        BasicBlock newthenbb = currCFG.getBlock(newthenid);
+        currBB.link(newthenbb);
+        statSequence(newthenbb,currCFG);
+        newthenbb.link(joinbb);
+        joinbb.insertPhi(icGen,newthenbb.getSymbolTable());
+        last.next = joinbb.getFirstInstr();
+        next();
+        if (currToken == Token.ELSE){
+            int newelseid = currCFG.createBB();
+            BasicBlock newelsebb = currCFG.getBlock(newelseid);
+            currBB.link(newelsebb);
+            next();
+            statSequence(newelsebb,currCFG);
+            newelsebb.link(joinbb);
+            joinbb.insertPhi(icGen,newelsebb.getSymbolTable());
+            x = new Result(Result.Type.instruction, newelsebb.getFirstInstr());
+        }else{
+            currBB.link(joinbb);
+            x = new Result(Result.Type.instruction,joinbb.getFirstInstr());
+        }
+        next();
+        if(currToken!=Token.FI){
+            throw new NotExpectedException("FI is expected");
+        }
+        return x;
+    }
+
+    private Result whileStatement(BasicBlock bb, CFG cfg)throws NonDeclaredException, NotExpectedException, IOException{
+        relation(bb);
+        int newid = cfg.createBB();
+        BasicBlock newbb = cfg.getBlock(newid);
+        bb.link(newbb);
+        next();
+        if(currToken != Token.DO){
+            throw  new NotExpectedException("DO is expected");
+        }
+        statSequence(newbb, cfg);
+        next();
+        if(currToken!=Token.OD){
+            throw  new NotExpectedException("OD is expected");
+        }
+        newbb.link(bb);
+        bb.insertPhi(icGen,newbb.getSymbolTable());
+        int branchid = cfg.createBB();
+        BasicBlock branchbb = cfg.getBlock(branchid);
+        return new Result(Result.Type.block, branchid);
+
+    }
     private void next() throws IOException{
         currToken = sc.getNextToken();
     }
