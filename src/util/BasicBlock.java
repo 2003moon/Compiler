@@ -25,7 +25,9 @@ public class BasicBlock {
         lastInstr = -1;
     }
 
-
+    public Result getSymbol(int address){
+        return symbolTable.get(address);
+    }
     public void addSuccessor(int id){
         successors.add(id);
     }
@@ -59,6 +61,10 @@ public class BasicBlock {
     public void link(BasicBlock target){
         addSuccessor(target.getId());
         target.addPredecessor(id);
+        if(target.getSymbolTable().size() == 0){
+            target.setSymbolTable(symbolTable);
+        }
+
     }
 
     public void insertPhi(IcGenerator icGen, TreeMap<Integer,Result> newSymbolTable){
@@ -73,9 +79,13 @@ public class BasicBlock {
                 if(r1.getVersion() != r2.getVersion()){
                     Instruction instr = new Instruction(r1, r2, Opcode.phi);
                     instr.setId(icGen.getInstrTable().size());
+
                     icGen.addinstraTable(instr.getId(), instr);
                     instr.next = firstInstr;
                     firstInstr = instr.getId();
+                    if(lastInstr==-1){
+                        lastInstr = firstInstr;
+                    }
                 }
             }
         }

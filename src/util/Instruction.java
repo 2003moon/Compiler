@@ -1,5 +1,6 @@
 package util;
 
+import frontend.scanner;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -26,6 +27,21 @@ public class Instruction {
         }else{
             oprand2 = r;
         }
+    }
+
+    public String toString(scanner sc, CFG cfg){
+        StringBuffer sb = new StringBuffer();
+        sb.append(id+": ");
+        String operation = op.toString();
+        sb.append(operation+" ");
+        if(oprand1!=null){
+            sb.append(oprand1.toString(sc,cfg));
+        }
+        sb.append(" ");
+        if(oprand2!=null){
+            sb.append(oprand2.toString(sc,cfg));
+        }
+        return sb.toString();
     }
 
 }

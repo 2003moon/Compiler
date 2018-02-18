@@ -1,5 +1,7 @@
 package util;
 
+import jdk.nashorn.internal.runtime.regexp.joni.constants.OPCode;
+
 public enum Opcode {
     neg,
     add,
@@ -22,7 +24,9 @@ public enum Opcode {
     bgt,
     read,
     write,
-    writeNL;
+    writeNL,
+    call,
+    returnTo;
 
     public static Opcode getOp(int op){
         switch (op){
@@ -70,6 +74,8 @@ public enum Opcode {
                 return write;
             case 21:
                 return writeNL;
+            case 22:
+                return call;
         }
         return null;
     }
@@ -97,6 +103,60 @@ public enum Opcode {
             case NEQ:
                 return bne;
 
+        }
+        return null;
+    }
+
+    public String toString(Opcode op){
+        switch (op){
+            case neg:
+                return "neg";
+            case add:
+                return "add";
+            case sub:
+                return "sub";
+            case mul:
+                return "mul";
+            case div:
+                return "div";
+            case cmp:
+                return "cmp";
+            case adda:
+                return "adda";
+            case load:
+                return "load";
+            case store:
+                return "store";
+            case move:
+                return "move";
+            case phi:
+                return "phi";
+            case end:
+                return "end";
+            case bra:
+                return "bra";
+            case bne:
+                return "bne";
+            case beq:
+                return "beq";
+            case ble:
+                return "ble";
+            case blt:
+                return "blt";
+            case bge:
+                return "bge";
+            case bgt:
+                return "bgt";
+            case read:
+                return "read";
+            case write:
+                return "write";
+            case writeNL:
+                return "writeNL";
+            case call:
+                return "call";
+            case returnTo:
+                return "returnTo";
         }
         return null;
     }

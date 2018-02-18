@@ -1,5 +1,6 @@
 package util;
 
+import frontend.scanner;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,8 +10,8 @@ public class Result {
         instruction,
         constant,
         variable,
-        array,
-        block;
+        block,
+        function;
     }
     public boolean isArray;
 
@@ -30,6 +31,7 @@ public class Result {
 
 
     public Result(Type type, int val){
+        this.type = type;
         if(type == Type.constant){
             value = val;
         }else if(type == Type.instruction){
@@ -60,6 +62,25 @@ public class Result {
         }else{
             this.address = res.getAddress();
         }
+    }
+
+    public String toString(scanner sc, CFG cfg){
+        StringBuffer sb = new StringBuffer();
+        if(type == Type.constant){
+            sb.append(value);
+        }else if(type == Type.variable){
+            String tk = sc.getIdent(address);
+            sb.append(tk);
+            sb.append("_");
+            sb.append(version);
+        }else if(type == Type.instruction){
+            sb.append("(");
+            sb.append(instr_id);
+            sb.append(")");
+        }else{
+            sb.append("function "+address);
+        }
+        return sb.toString();
     }
 
 }

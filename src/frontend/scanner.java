@@ -159,7 +159,7 @@ public class scanner {
         if(identToId.containsKey(s)) {
             id = identToId.get(s);
         }else{
-            id = identToId.size();
+            id = identToId.size()+1;
             identToId.put(s,id);
             idToIdent.put(id,s);
         }
@@ -181,7 +181,7 @@ public class scanner {
         val = sum;
         return Token.NUMBER;
     }
-    public String getIdent(){
+    public String getIdent(int id){
         return  idToIdent.get(id);
     }
 
