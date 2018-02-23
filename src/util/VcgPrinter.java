@@ -107,11 +107,13 @@ public class VcgPrinter {
         }else{
             while(first != bb.getLastInstr()){
                 Instruction instr = icGen.getInstruction(first);
-                ptw.println(instr.toString(ps.getSc(), cfg));
+                String line = instr.toString(ps.getSc(), cfg);
+                ptw.println(line);
                 first = instr.next;
             }
             Instruction instr = icGen.getInstruction(first);
-            ptw.println(instr.toString(ps.getSc(), cfg));
+            String line = instr.toString(ps.getSc(), cfg);
+            ptw.println(line);
         }
 
     }

@@ -12,11 +12,13 @@ public class CFG {
     private int lastBB;
     private Map<Integer,BasicBlock> bbMap;
  //   private Map<Integer, Result> localVarMap;
-    private Set<Integer> varSet;
+    private Map<Integer,Integer> varTable;
     private Map<Integer,Result> parameters;
     private Queue<Instruction> resumePoints;
     private String name;
     private int id;
+
+    private Map<Integer, ArrayList<Integer>> DU;  //TODO: implement DU chain.
 
     public CFG(int id,String name){
         this.id = id;
@@ -26,7 +28,7 @@ public class CFG {
         createBB();
         this.lastBB = firstBB;
         parameters = new HashMap<>();
-        varSet = new HashSet<>();
+        varTable= new HashMap<>();
         resumePoints = new LinkedList<>(); //TODO: when generate the code, the point should always points to the header.
     }
 
@@ -36,12 +38,23 @@ public class CFG {
     }
 
 
-    public void addVar(int address){
-        varSet.add(address);
+    public void addVar(int address, int version){
+        varTable.put(address,version);
     }
 
+    public int getVersion(int address){
+        return varTable.get(address);
+    }
     public boolean isDeclared(int address){
-        return varSet.contains(address);
+        return varTable.containsKey(address);
+    }
+
+    public boolean isDefined(int address){
+        return varTable.get(address)!=-1;
+    }
+
+    public void updateVersion(int address, int newver){
+        varTable.put(address,newver);
     }
 
     public BasicBlock getBlock(int id){

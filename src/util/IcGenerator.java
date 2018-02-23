@@ -1,9 +1,11 @@
 package util;
 
+import exceptions.NonDeclaredException;
 import exceptions.NotDefinedException;
 import lombok.Getter;
 
 
+import java.lang.reflect.Array;
 import java.util.*;
 
 @Getter
@@ -46,7 +48,7 @@ public class IcGenerator {
     }
 
 
-    public Result combine(Opcode op, Result r1, Result r2, BasicBlock bb) throws NotDefinedException{
+    public Result combine(Opcode op, Result r1, Result r2, BasicBlock bb, BasicBlock joinBlock, Map<Integer, ArrayList<Integer>> useChain) throws NotDefinedException{
         Result res= null;
 
         if(op!= Opcode.store && op!= Opcode.load && r1!=null && r2 != null && r1.getType()==Result.Type.constant && r2.getType()==Result.Type.constant) {
@@ -62,39 +64,83 @@ public class IcGenerator {
             return res;
         }
 
+        CFG cfg = cfgMap.get(bb.getCfgid());
+
         Instruction instr = new Instruction(r1,r2,op);
         instr.setId(instrTable.size());
-        instrTable.put(instr.getId(), instr);
         bb.addInstr(this, instr);
-        setVersion(r1,bb);
+
+        if(r1!=null&&r1.getType() == Result.Type.variable){
+            if(!cfg.isDefined(r1.getAddress())){
+                throw new NotDefinedException("variable at "+ r1.getAddress() + " not defined");
+            }
+            if(joinBlock!=null && !joinBlock.hasPhi(r1.getAddress())){
+                addUsage(r1.getAddress(),instr.getId(), useChain);
+            }
+
+        }
 
         if (op == Opcode.move){
             r2.setVersion(instr.getId());
-            bb.addSymbol(r2); // r2 is the one assigned.
+            if(joinBlock!=null){
+                int backup = r2.getVersion();
+                if(cfg.isDefined(r2.getAddress())){
+                    backup = cfg.getVersion(r2.getAddress());
+                }
+                joinBlock.insertPhi(this,r2,bb.getBrType(),backup);
+            }
+            cfg.updateVersion(r2.getAddress(),r2.getVersion());// r2 is the one assigned.
         }else{
-            setVersion(r2,bb);
+            if(r2!=null && r2.getType() == Result.Type.variable){
+                if(!cfg.isDefined(r2.getAddress())){
+                    throw new NotDefinedException("variable at "+ r2.getAddress() + " not defined");
+                }
+
+                if(joinBlock!=null && !joinBlock.hasPhi(r2.getAddress())){
+                    addUsage(r2.getAddress(),instr.getId(), useChain);
+                }
+
+            }
         }
+     //   instrTable.put(instr.getId(), instr);
 
 
         res = new Result(Result.Type.instruction, instr.getId());
         return res;
     }
 
-    private void setVersion(Result res, BasicBlock bb)throws NotDefinedException{
-        if(res!=null && res.getType()== Result.Type.variable && !maincfg.isDeclared(res.getAddress())){
-            Result ver_res = bb.getSymbol(res.getAddress());
-            if(ver_res==null){
-                throw new NotDefinedException("variable at"+res.getAddress()+"is not defined");
-            }else{
-                res.setVersion(ver_res.getVersion());
+    public void updateUsage(int cfgid, Map<Integer,ArrayList<Integer>> useChain){
+        CFG cfg = cfgMap.get(cfgid);
+        for(Map.Entry<Integer, ArrayList<Integer>> entry : useChain.entrySet()){
+            int key = entry.getKey();
+            ArrayList<Integer> instrs = entry.getValue();
+            for(Integer pc : instrs){
+                Instruction instr = instrTable.get(pc);
+                Result res = instr.getOprand(key);
+                int version = cfg.getVersion(key);
+                res.setVersion(version);
             }
         }
     }
 
-  /*  public void passParam(int cfgid, int index, Result x){
-        CFG cfg = cfgMap.get(cfgid);
-        Result y = cfg.getParameters().get(index);
-        combine(Opcode.move,x,y);
-    }*/
+    public void resetVersion(CFG cfg, BasicBlock joinNode){
+        for(Map.Entry<Integer, phiAssignment> entry : joinNode.getPhiTable().entrySet()){
+            int addr = entry.getKey();
+            phiAssignment phi = entry.getValue();
+            cfg.updateVersion(addr, phi.backupV);
+        }
+    }
+
+    private void addUsage(int address,  int pc, Map<Integer, ArrayList<Integer>> useChain){
+        if(useChain == null){
+            return;
+        }
+        if(!useChain.containsKey(address)){
+            useChain.put(address, new ArrayList<>());
+        }
+        useChain.get(address).add(pc);
+    }
+
+
 
 }

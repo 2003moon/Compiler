@@ -1,13 +1,26 @@
 package main;
+import exceptions.DuplicateDeclaredException;
+import exceptions.NonDeclaredException;
+import exceptions.NotDefinedException;
+import exceptions.NotExpectedException;
 import frontend.*;
+import util.CFG;
+import util.IcGenerator;
 import util.Token;
+import util.VcgPrinter;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 public class test {
-    public static void main(String[] args){
+    private parser ps;
+
+    public test(String filename) throws IOException, DuplicateDeclaredException, NotExpectedException, NotDefinedException,NonDeclaredException {
+        ps = new parser(filename);
+        ps.parse();
+    }
+    private void testScanner(scanner sc){
         try{
-            scanner sc = new scanner("test005.txt");
             Token tk = sc.getNextToken();
             while(tk != Token.EOF){
                 System.out.print(tk);
@@ -15,7 +28,7 @@ public class test {
                     System.out.print(" "+sc.getVal());
                 }
                 if(tk == Token.IDENT){
-                    System.out.print(" "+sc.getIdent());
+                    System.out.print(" "+sc.getIdent(sc.getIdentId()));
                 }
                 System.out.print('\n');
                 tk = sc.getNextToken();
@@ -23,6 +36,37 @@ public class test {
         }catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    private void testCfgGraph(){
+        IcGenerator icGen = ps.getIcGen();
+        Iterator<Integer> it = icGen.getCfgMap().keySet().iterator();
+        while(it.hasNext()){
+            int cfgno = it.next();
+            String outputname = "test11_"+cfgno;
+            VcgPrinter printer = new VcgPrinter(outputname, ps);
+            CFG cfg = icGen.getCfg(cfgno);
+            printer.printCFG(cfg);
+        }
+    }
+
+    private void testDt(){
+        IcGenerator icGen = ps.getIcGen();
+        Iterator<Integer> it = icGen.getCfgMap().keySet().iterator();
+        while(it.hasNext()){
+            int cfgno = it.next();
+            String outputname = "test8_"+cfgno+"_Dt";
+            VcgPrinter printer = new VcgPrinter(outputname, ps);
+            CFG cfg = icGen.getCfg(cfgno);
+            printer.printDT(cfg);
+        }
+    }
+
+    public static void main(String[] args)throws IOException, DuplicateDeclaredException, NotExpectedException, NotDefinedException,NonDeclaredException {
+    //   String outputname = "test2";
+        String inputname = "testdata/test011.txt";
+        test ts = new test(inputname);
+        ts.testCfgGraph();
+     //   ts.testDt();
     }
 }
 

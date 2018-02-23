@@ -10,7 +10,7 @@ public class Result {
         instruction,
         constant,
         variable,
-        block,
+        branch,
         function;
     }
     public boolean isArray;
@@ -23,7 +23,7 @@ public class Result {
 
     private int instr_id;
 
-    private int bb_id;
+    private int br_id;
 
 
     @Setter
@@ -38,8 +38,8 @@ public class Result {
             instr_id = val;
         }else if(type == Type.variable){
             address = val;
-        }else if(type == Type.block){
-            bb_id = val;
+        }else if(type == Type.branch){
+            br_id = val;
         }else{
             address = val;
         }
@@ -57,8 +57,8 @@ public class Result {
             this.value = res.getValue();
         }else if (type == Type.instruction){
             this.instr_id = res.getInstr_id();
-        }else if(type == Type.block){
-            this.bb_id = res.getBb_id();
+        }else if(type == Type.branch){
+            this.br_id = res.getBr_id();
         }else{
             this.address = res.getAddress();
         }
@@ -77,8 +77,8 @@ public class Result {
             sb.append("(");
             sb.append(instr_id);
             sb.append(")");
-        }else{
-            sb.append("function "+address);
+        }else if(type == Type.branch){
+            sb.append("branch_"+br_id);
         }
         return sb.toString();
     }

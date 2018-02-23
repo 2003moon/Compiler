@@ -29,6 +29,21 @@ public class Instruction {
         }
     }
 
+    public void updatePhi(int i, Result r){
+        if(i == 0){
+            oprand1 = r;
+        }else{
+            oprand2 = r;
+        }
+    }
+
+    public Result getOprand(int id) {
+        if(id == oprand1.getAddress()){
+            return oprand1;
+        }
+        return oprand2;
+    }
+
     public String toString(scanner sc, CFG cfg){
         StringBuffer sb = new StringBuffer();
         sb.append(id+": ");
