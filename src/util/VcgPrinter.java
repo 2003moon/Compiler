@@ -39,9 +39,9 @@ public class VcgPrinter {
     }
 
     public void printDT(CFG cfg) {
-        this.dtComp = new DominatorTreeComputer(cfg);
-        dtComp.computing();
-        DominatorTreeNode root = dtComp.getNode(0);
+        this.dtComp = ps.getDtComp();
+      //  dtComp.computing();
+        BasicBlock root = dtComp.getNode(0);
         ptw.println("graph: { title: \"Dominant Tree\"");
         ptw.println("layoutalgorithm: dfs");
         ptw.println("manhattan_edges: yes");
@@ -53,7 +53,7 @@ public class VcgPrinter {
         ptw.close();
     }
 
-    private  void printDtDFS(DominatorTreeNode node){
+    private  void printDtDFS(BasicBlock node){
         printDtNode(node);
         ArrayList<Integer> childs = node.getChild();
         for(int i = 0;i<childs.size();i++){
@@ -61,21 +61,20 @@ public class VcgPrinter {
         }
     }
 
-    private void printDtNode(DominatorTreeNode node){
+    private void printDtNode(BasicBlock node){
         ptw.println("node: {");
-        ptw.println("title: \"" + node.getNodeId() + "\"");
-        ptw.println("label: \"" + node.getNodeId() + "[");
+        ptw.println("title: \"" + node.getId() + "\"");
+        ptw.println("label: \"" + node.getId() + "[");
 
-        BasicBlock bb = node.getBb();
 
-        printInstruction(bb);
+        printInstruction(node);
 
         ptw.println("]\"");
         ptw.println("}");
 
         ArrayList<Integer> childs = node.getChild();
         for(int i = 0;i<childs.size();i++){
-            printEdge(node.getNodeId(),childs.get(i));
+            printEdge(node.getId(),childs.get(i));
         }
     }
     private void printCfgNode(BasicBlock bb){

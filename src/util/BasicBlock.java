@@ -3,20 +3,24 @@ package util;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.lang.reflect.Array;
 import java.util.*;
 
 @Getter
 public class BasicBlock {
 
+    public int immDom;
     private int firstInstr;
     private int lastInstr;
     private int id;
     private int cfgid;
     private Set<Integer> successors;
     private Set<Integer> predecessors;
+    private ArrayList<Integer> child;
     private TreeMap<Integer, Result> symbolTable; //variable's version in the current BB
     private Map<Integer, phiAssignment> phiTable; // <address, phi function>
     private Map<Integer,Result> usageTable;
+
     @Setter
     private BrType brType;
 
@@ -30,12 +34,22 @@ public class BasicBlock {
         this.cfgid = cfgid;
         successors = new HashSet<>();
         predecessors = new HashSet<>();
+        child = new ArrayList<>();
         symbolTable = new TreeMap<>();
         phiTable = new HashMap<>();
         usageTable = new HashMap<>();
         firstInstr = -1;
         lastInstr = -1;
         brType = BrType.others;
+        immDom = -1;
+    }
+
+    public void addChild(int nodeId){
+        child.add(nodeId);
+    }
+
+    public boolean isDom(int dom){
+        return immDom == dom;
     }
 
     public Result getSymbol(int address){

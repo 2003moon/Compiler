@@ -5,7 +5,6 @@ import lombok.Getter;
 import java.util.*;
 
 @Getter
-//TODO: CFG needs to manage a sysmbol table including all of the variables with their newes version.joinBlock should commit this table to CFG
 
 public class CFG {
     private int firstBB;
@@ -18,7 +17,6 @@ public class CFG {
     private String name;
     private int id;
 
-    private Map<Integer, ArrayList<Integer>> DU;  //TODO: implement DU chain.
 
     public CFG(int id,String name){
         this.id = id;

@@ -42,7 +42,7 @@ public class test {
         Iterator<Integer> it = icGen.getCfgMap().keySet().iterator();
         while(it.hasNext()){
             int cfgno = it.next();
-            String outputname = "test11_"+cfgno;
+            String outputname = "test22_"+cfgno;
             VcgPrinter printer = new VcgPrinter(outputname, ps);
             CFG cfg = icGen.getCfg(cfgno);
             printer.printCFG(cfg);
@@ -54,7 +54,7 @@ public class test {
         Iterator<Integer> it = icGen.getCfgMap().keySet().iterator();
         while(it.hasNext()){
             int cfgno = it.next();
-            String outputname = "test8_"+cfgno+"_Dt";
+            String outputname = "test22_"+cfgno+"_Dt";
             VcgPrinter printer = new VcgPrinter(outputname, ps);
             CFG cfg = icGen.getCfg(cfgno);
             printer.printDT(cfg);
@@ -63,10 +63,10 @@ public class test {
 
     public static void main(String[] args)throws IOException, DuplicateDeclaredException, NotExpectedException, NotDefinedException,NonDeclaredException {
     //   String outputname = "test2";
-        String inputname = "testdata/test011.txt";
+        String inputname = "testdata/test022.txt";
         test ts = new test(inputname);
         ts.testCfgGraph();
-     //   ts.testDt();
+        ts.testDt();
     }
 }
 

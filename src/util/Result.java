@@ -1,11 +1,12 @@
 package util;
 
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 import frontend.scanner;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
-public class Result {
+public class Result implements Comparable<Result> {
     public enum Type{
         instruction,
         constant,
@@ -30,7 +31,7 @@ public class Result {
     private int version; //for variable
 
 
-    public Result(Type type, int val){
+    public Result(Type type, int val) {
         this.type = type;
         if(type == Type.constant){
             value = val;
@@ -46,6 +47,7 @@ public class Result {
 
         isArray = false;
     }
+
 
 
     public Result(Result res){
@@ -81,6 +83,29 @@ public class Result {
             sb.append("branch_"+br_id);
         }
         return sb.toString();
+    }
+
+    public int compareTo(Result r){
+        if(r == null){
+            return  -1;
+        }
+        if(this.type != r.type){
+            return -1;
+        }
+        if(type == Type.variable){
+            if(this.address != r.getAddress()){
+                return -1;
+            }
+            return this.version - r.version;
+        }
+        if(type == Type.constant){
+            return this.value - r.getValue();
+        }
+
+        if(type == Type.instruction){
+            return this.instr_id - r.getInstr_id();
+        }
+        return -1;
     }
 
 }

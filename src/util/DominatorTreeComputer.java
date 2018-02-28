@@ -3,58 +3,25 @@ package util;
 import java.util.*;
 
 public class DominatorTreeComputer {
-    private CFG cfg;
-    private Map<Integer, DominatorTreeNode> nodeMap;
-    private DominatorTreeNode root;
+    private Map<Integer, BasicBlock> nodeMap;
+    private BasicBlock root;
 
-    public DominatorTreeComputer(CFG cfg){
-        this.cfg = cfg;
+    public DominatorTreeComputer(){
         nodeMap = new HashMap<>();
-        initMap();
     }
 
-    public void computing(){
-        Queue<Integer> nodes = new LinkedList<>();
-        Set<Integer> visited = new HashSet<>();
-        for(Integer succ : root.getBb().getSuccessors()){
-            nodes.add(succ);
-        }
-        while(!nodes.isEmpty()){
-            int size = nodes.size();
-            for(int i = 0;i<size;i++){
-                int succ = nodes.poll();
-                visited.add(succ);
-                DominatorTreeNode nd = nodeMap.get(succ);
-                computeDom(nd);
-                computeChild(nd);
-                for(Integer ndSucc : nd.getBb().getSuccessors()){
-                    if(!visited.contains(ndSucc)){
-                        nodes.offer(ndSucc);
-                    }
 
-                }
-            }
-        }
-
+    public boolean hasNode(int nodeId){
+        return nodeMap.containsKey(nodeId);
     }
 
-    public DominatorTreeNode getNode(int nodeId){
+    public void addNode(BasicBlock bb){
+        nodeMap.put(bb.getId(), bb);
+    }
+    public BasicBlock getNode(int nodeId){
         return  nodeMap.get(nodeId);
     }
 
-    private void computeDom(DominatorTreeNode nd){
-        Set<Integer> preds = nd.getBb().getPredecessors();
-        ArrayList<Integer> doms = new ArrayList<>();
-        for(Integer id:preds){
-            DominatorTreeNode predNd = getNode(id);
-            Collections.sort(predNd.getDom());
-            doms = intersectDom(predNd.getDom(),doms);
-        }
-        for(int i = 0;i<doms.size();i++){
-            nd.addDom(doms.get(i));
-        }
-        nd.addDom(nd.getNodeId());
-    }
 
     private ArrayList<Integer> intersectDom(ArrayList<Integer> predDom, ArrayList<Integer> ndDom){
         int ptr1 = 0, ptr2 = 0;
@@ -81,26 +48,15 @@ public class DominatorTreeComputer {
          return new ArrayList<>(ndDom);
     }
 
-    private void computeChild(DominatorTreeNode nd){
-        ArrayList<Integer> doms = nd.getDom();
-        DominatorTreeNode parentNd = nodeMap.get(doms.get(doms.size()-2));
-        parentNd.addChild(nd.getNodeId());
-    }
 
-    private void initMap(){
+    private void initMap(CFG cfg){
         for(Map.Entry<Integer, BasicBlock> entry : cfg.getBbMap().entrySet()){
             int key = entry.getKey();
             BasicBlock bb = entry.getValue();
             if(key == 0){
-                root = new DominatorTreeNode(bb);
-                nodeMap.put(0, root);
-                root.addDom(0);
-
-            }else{
-                DominatorTreeNode node = new DominatorTreeNode(bb);
-                nodeMap.put(key, node);
+                root = bb;
             }
-
+            nodeMap.put(key, bb);
         }
     }
 

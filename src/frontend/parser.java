@@ -15,12 +15,14 @@ import java.util.Map;
 public class parser {
     private Token currToken;
     private IcGenerator icGen;
+    private DominatorTreeComputer DtComp;
     private scanner sc;
     private int FP;
 
     public parser(String path) throws IOException{
         sc = new scanner(path);
         icGen = new IcGenerator();
+        DtComp = new DominatorTreeComputer();
         FP = 0;
         next();
     }
@@ -38,23 +40,31 @@ public class parser {
             varDecl(cfg);
         }
 
-      //  next();
         while (isFuncDecl(currToken)){
             next();
             funcDecl();
         }
 
-     //   next();
         if(currToken!= Token.LEFT_BRACE){
             throw new NotExpectedException("{ is expected");
         }
         next();
-        BasicBlock bb = statSequence(cfg.getBlock(cfg.getFirstBB()),null, null, cfg);
+
+        //TODO: initiate the first DT  node(root)
+        BasicBlock firstBB = cfg.getBlock(cfg.getFirstBB());
+        initDtNode(firstBB);
+        BasicBlock bb = statSequence(firstBB,null, null, cfg);
         if (currToken!=Token.RIGHT_BRACE){
             throw new NotExpectedException("} is expected");
         }
         icGen.combine(Opcode.end,null,null,bb, null, null);
 
+    }
+
+    private void initDtNode(BasicBlock bb){
+        if(!DtComp.hasNode(bb.getId())){
+            DtComp.addNode(bb);
+        }
     }
 
     private void varDecl(CFG currcfg) throws NotExpectedException, DuplicateDeclaredException, IOException{
@@ -488,8 +498,12 @@ public class parser {
         relation(currBB, joinNode, useChain);
         int joinid = currCFG.createBB();
         BasicBlock joinbb = currCFG.getBlock(joinid);
+        initDtNode(joinbb);
+        currBB.addChild(joinid);
+        joinbb.immDom = currBB.getId();
+
+        //TODO: make joinbb be the child of currbb
         joinbb.setBrType(currBB.getBrType());
-    //    next();
         if (currToken!=Token.THEN){
             throw new NotExpectedException("THEN is expected");
         }
@@ -498,8 +512,12 @@ public class parser {
 
         int newthenid = currCFG.createBB();
         BasicBlock newthenbb = currCFG.getBlock(newthenid);
+        initDtNode(newthenbb);
         newthenbb.setBrType(BasicBlock.BrType.then);
         currBB.link(newthenbb);
+        currBB.addChild(newthenid);
+        newthenbb.immDom = currBB.getId();
+        //TODO: make thenbb be the child of currbb
         newthenbb = statSequence(newthenbb,joinbb, useChain, currCFG);
         newthenbb.link(joinbb);
         last.next = newthenbb.getFirstInstr();
@@ -509,9 +527,13 @@ public class parser {
         if (currToken == Token.ELSE){
             int newelseid = currCFG.createBB();
             BasicBlock newelsebb = currCFG.getBlock(newelseid);
+            initDtNode(newelsebb);
             currBB.link(newelsebb);
+            currBB.addChild(newelseid);
+            newelsebb.immDom = currBB.getId();
             last.updatePhi(1, new Result(Result.Type.branch, newelseid));
             next();
+            //TODO: make elsebb be the child of currbb
             newelsebb = statSequence(newelsebb,joinbb, useChain, currCFG);
             newelsebb.link(joinbb);
             Instruction newelselast = icGen.getInstruction(newelsebb.getLastInstr());
@@ -538,9 +560,13 @@ public class parser {
         if(bb.getFirstInstr()!=-1){
            int whileid = cfg.createBB();
            whileBB = cfg.getBlock(whileid);
+           initDtNode(whileBB);
             bb.link(whileBB);
-        }
+            bb.addChild(whileid);
+            whileBB.immDom = bb.getId();
 
+            //TODO: make while bb be child of bb(DT tree)
+        }
       //  HashMap<Integer, ArrayList<Integer>> usageChain = new HashMap<Integer, ArrayList<Integer>>();
 
         relation(whileBB, whileBB, usageChain);
@@ -552,9 +578,11 @@ public class parser {
 
         int loopid = cfg.createBB();
         BasicBlock loopBB = cfg.getBlock(loopid);
+        initDtNode(loopBB);
         whileBB.link(loopBB);
-
-
+        whileBB.addChild(loopid);
+        loopBB.immDom = whileBB.getId();
+        //TODO:make loopbb be the child of whilebb.
         loopBB = statSequence(loopBB, whileBB, usageChain, cfg);
         loopBB.addBranch(icGen, Opcode.bra, new Result(Result.Type.branch,whileBB.getId()), null);
         loopBB.link(whileBB);
@@ -565,10 +593,14 @@ public class parser {
         whileBB.commitPhi(icGen, joinBB);
         icGen.updateUsage(cfg.getId(), usageChain);
         int branchid = cfg.createBB();
+        //TODO: make breanch bb be the child of while bb
         BasicBlock branchbb = cfg.getBlock(branchid);
+        initDtNode(branchbb);
         Instruction whileLast = icGen.getInstruction(whileBB.getLastInstr());
         whileLast.updatePhi(1, new Result(Result.Type.branch, branchid));
         whileBB.link(branchbb);
+        whileBB.addChild(branchid);
+        branchbb.immDom = whileBB.getId();
 
         return new Result(Result.Type.branch, branchid);
     }
