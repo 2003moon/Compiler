@@ -3,20 +3,19 @@ package util;
 import frontend.scanner;
 import lombok.Getter;
 import lombok.Setter;
-
+@Getter
 public class Instruction implements Comparable<Instruction> {
-    @Getter @Setter
+    @Setter
     private int id; // the size of the instruction list
-    @Getter
     private Opcode op;
-    private Result oprand1;
-    private Result oprand2;
-    @Getter @Setter
-    private int bbid;
-    //TODO: there should be a bb id to indicate the current bb the instruction is in.
 
+    @Setter
+    private int bbid;
 
     public int next;
+    public int prev; //TODO: while parsing, prev should also be maintained.
+    public Result oprand1;
+    public Result oprand2;
 
     public Instruction(Result oprand1, Result oprand2, Opcode op){
         this.oprand1 = oprand1;

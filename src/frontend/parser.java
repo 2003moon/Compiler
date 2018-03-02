@@ -502,7 +502,6 @@ public class parser {
         currBB.addChild(joinid);
         joinbb.immDom = currBB.getId();
 
-        //TODO: make joinbb be the child of currbb
         joinbb.setBrType(currBB.getBrType());
         if (currToken!=Token.THEN){
             throw new NotExpectedException("THEN is expected");
@@ -517,7 +516,6 @@ public class parser {
         currBB.link(newthenbb);
         currBB.addChild(newthenid);
         newthenbb.immDom = currBB.getId();
-        //TODO: make thenbb be the child of currbb
         newthenbb = statSequence(newthenbb,joinbb, useChain, currCFG);
         newthenbb.link(joinbb);
         last.next = newthenbb.getFirstInstr();
@@ -533,7 +531,6 @@ public class parser {
             newelsebb.immDom = currBB.getId();
             last.updatePhi(1, new Result(Result.Type.branch, newelseid));
             next();
-            //TODO: make elsebb be the child of currbb
             newelsebb = statSequence(newelsebb,joinbb, useChain, currCFG);
             newelsebb.link(joinbb);
             Instruction newelselast = icGen.getInstruction(newelsebb.getLastInstr());
@@ -564,8 +561,6 @@ public class parser {
             bb.link(whileBB);
             bb.addChild(whileid);
             whileBB.immDom = bb.getId();
-
-            //TODO: make while bb be child of bb(DT tree)
         }
       //  HashMap<Integer, ArrayList<Integer>> usageChain = new HashMap<Integer, ArrayList<Integer>>();
 
@@ -582,7 +577,6 @@ public class parser {
         whileBB.link(loopBB);
         whileBB.addChild(loopid);
         loopBB.immDom = whileBB.getId();
-        //TODO:make loopbb be the child of whilebb.
         loopBB = statSequence(loopBB, whileBB, usageChain, cfg);
         loopBB.addBranch(icGen, Opcode.bra, new Result(Result.Type.branch,whileBB.getId()), null);
         loopBB.link(whileBB);
@@ -593,7 +587,6 @@ public class parser {
         whileBB.commitPhi(icGen, joinBB);
         icGen.updateUsage(cfg.getId(), usageChain);
         int branchid = cfg.createBB();
-        //TODO: make breanch bb be the child of while bb
         BasicBlock branchbb = cfg.getBlock(branchid);
         initDtNode(branchbb);
         Instruction whileLast = icGen.getInstruction(whileBB.getLastInstr());

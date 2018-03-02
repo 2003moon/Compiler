@@ -14,13 +14,10 @@ public class IcGenerator {
     private Map<Integer, Instruction> instrTable;
     private Map<Integer, Instruction> tempInstr;
     private CFG maincfg;
-    private Map<Opcode, ArrayList<Integer>> archerTable;
-    //TODO: add a archer table.
     public IcGenerator(){
         cfgMap = new HashMap<>();
         createCfg(0, "main");
         maincfg = cfgMap.get(0);
-        initArcherTable();
         returnTable = new HashMap<>();
         instrTable = new HashMap<>();
         tempInstr = new HashMap<>();
@@ -52,16 +49,7 @@ public class IcGenerator {
         Result res= null;
 
         if(op!= Opcode.store && op!= Opcode.load && r1!=null && r2 != null && r1.getType()==Result.Type.constant && r2.getType()==Result.Type.constant) {
-            if (op == Opcode.add || op == Opcode.adda) {
-                res = new Result(Result.Type.constant, r1.getValue() + r2.getValue());
-            } else if (op == Opcode.sub) {
-                res = new Result(Result.Type.constant, r1.getValue() - r2.getValue());
-            } else if (op == Opcode.mul) {
-                res = new Result(Result.Type.constant, r1.getValue() * r2.getValue());
-            } else if (op == Opcode.div) {
-                res = new Result(Result.Type.constant, r1.getValue() / r2.getValue());
-            }
-            return res;
+            return constantOp(op, r1, r2);
         }
 
         CFG cfg = cfgMap.get(bb.getCfgid());
@@ -69,16 +57,12 @@ public class IcGenerator {
         Instruction instr = new Instruction(r1,r2,op);
         instr.setId(instrTable.size());
         instr.setBbid(bb.getId());
-        Integer prev_id = findPrev(op, bb, instr);
-        if(prev_id != null){
-            instrTable.put(instr.getId(), instr);
-            res = new Result(Result.Type.instruction, prev_id);
-            System.out.println("Instruction_"+instr.getId()+" is replaced by instruction_"+prev_id);
-            return res;
-        }
-        //TODO: for the whilestatement, the replacement is before the update, which is a bug
-
         bb.addInstr(this, instr);
+        //TODO: for the whilestatement, the replacement is before the update, which is a bug
+        //TODO: solution:  separate parser and optimizer.
+        //TODO: for instruction, build instruction usage chain.
+
+        
 
 
 
@@ -135,12 +119,27 @@ public class IcGenerator {
         }
     }
 
+
     public void resetVersion(CFG cfg, BasicBlock joinNode){
         for(Map.Entry<Integer, phiAssignment> entry : joinNode.getPhiTable().entrySet()){
             int addr = entry.getKey();
             phiAssignment phi = entry.getValue();
             cfg.updateVersion(addr, phi.backupV);
         }
+    }
+
+    public Result constantOp(Opcode op, Result r1, Result r2){
+        Result res = null;
+        if (op == Opcode.add || op == Opcode.adda) {
+            res = new Result(Result.Type.constant, r1.getValue() + r2.getValue());
+        } else if (op == Opcode.sub) {
+            res = new Result(Result.Type.constant, r1.getValue() - r2.getValue());
+        } else if (op == Opcode.mul) {
+            res = new Result(Result.Type.constant, r1.getValue() * r2.getValue());
+        } else if (op == Opcode.div) {
+            res = new Result(Result.Type.constant, r1.getValue() / r2.getValue());
+        }
+        return res;
     }
 
     private void addUsage(int address,  int pc, Map<Integer, ArrayList<Integer>> useChain){
@@ -153,35 +152,8 @@ public class IcGenerator {
         useChain.get(address).add(pc);
     }
 
-    private Integer findPrev(Opcode op, BasicBlock bb, Instruction instr){
-        if(!archerTable.containsKey(op)){
-            return  null;
-        }
-        for(Integer id : archerTable.get(op)){
-            Instruction prev = instrTable.get(id);
-            if(bb.isDom(prev.getBbid())||instr.getBbid() == prev.getBbid()){
-                if(instr.compareTo(prev) == 0){
-                    return id;
-                }
-            }
-        }
-        archerTable.get(op).add(instr.getId());
-        return  null;
-    }
 
-    private void initArcherTable(){
-        archerTable = new HashMap<>();
-        archerTable.put(Opcode.neg, new ArrayList<>());
-        archerTable.put(Opcode.add, new ArrayList<>());
-        archerTable.put(Opcode.sub, new ArrayList<>());
-        archerTable.put(Opcode.mul, new ArrayList<>());
-        archerTable.put(Opcode.div, new ArrayList<>());
-        archerTable.put(Opcode.cmp, new ArrayList<>());
-        archerTable.put(Opcode.adda, new ArrayList<>());
-        archerTable.put(Opcode.load, new ArrayList<>());
-        archerTable.put(Opcode.store, new ArrayList<>());
 
-    }
 
 
 

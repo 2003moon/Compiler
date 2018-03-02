@@ -102,6 +102,27 @@ public class BasicBlock {
         icGen.addinstraTable(newInstruction.getId(), newInstruction);
     }
 
+    public void deleteInstr(IcGenerator icGen, Instruction instr){
+        int instr_id = instr.getId();
+        if(instr_id == firstInstr && instr_id == lastInstr){
+            firstInstr = -1;
+            lastInstr = -1;
+        }else if(instr_id == firstInstr){
+            firstInstr = instr.next;
+        }else if(instr_id == lastInstr){
+            Instruction prev = icGen.getInstruction(instr.prev);
+            prev.next = instr.next;
+            lastInstr = prev.getId();
+        }else{
+            Instruction prev = icGen.getInstruction(instr.prev);
+            Instruction next = icGen.getInstruction(instr.next);
+            prev.next = next.getId();
+            next.prev = prev.getId();
+        }
+
+        instr.setBbid(-1);
+    }
+
     public void addInstrHeader(IcGenerator icGen, Instruction newInstruction){
         if(firstInstr == -1){
             firstInstr = newInstruction.getId();
