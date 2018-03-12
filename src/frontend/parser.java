@@ -529,7 +529,7 @@ public class parser {
             currBB.link(newelsebb);
             currBB.addChild(newelseid);
             newelsebb.immDom = currBB.getId();
-            last.updatePhi(1, new Result(Result.Type.branch, newelseid));
+            last.updateOp(1, new Result(Result.Type.branch, newelseid));
             next();
             newelsebb = statSequence(newelsebb,joinbb, useChain, currCFG);
             newelsebb.link(joinbb);
@@ -540,7 +540,7 @@ public class parser {
            // currBB.link(joinbb);
             Instruction newthenlast = icGen.getInstruction(newthenbb.getLastInstr());
             newthenlast.next = joinbb.getFirstInstr();
-            last.updatePhi(1, new Result(Result.Type.branch, joinid));
+            last.updateOp(1, new Result(Result.Type.branch, joinid));
         }
      //   next();
         if(currToken!=Token.FI){
@@ -590,7 +590,7 @@ public class parser {
         BasicBlock branchbb = cfg.getBlock(branchid);
         initDtNode(branchbb);
         Instruction whileLast = icGen.getInstruction(whileBB.getLastInstr());
-        whileLast.updatePhi(1, new Result(Result.Type.branch, branchid));
+        whileLast.updateOp(1, new Result(Result.Type.branch, branchid));
         whileBB.link(branchbb);
         whileBB.addChild(branchid);
         branchbb.immDom = whileBB.getId();

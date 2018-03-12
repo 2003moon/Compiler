@@ -21,6 +21,9 @@ public class test {
         ps = new parser(filename);
         ps.parse();
         opt = new Optimizer(ps);
+    }
+
+    public void optimize(){
         opt.optimize();
     }
 
@@ -73,18 +76,27 @@ public class test {
         }
     }
 
+    public void testColorGraph(String prefixname){
+        VcgPrinter printer = new VcgPrinter(prefixname, ps);
+        printer.printGraph(opt.getGraph());
+    }
+
     public static void main(String[] args)throws IOException, DuplicateDeclaredException, NotExpectedException, NotDefinedException,NonDeclaredException {
     //   String outputname = "test2";
-        String inputname = "testdata/test007.txt";
+        String inputname = "testdata/test014.txt";
         test ts = new test(inputname);
-        String cfgname = "test7_";
-        String dtname = "test7_Dt_";
-        String optcfgname = "test7_opt_";
-        String optdtname = "test7_Dt_opt_";
+        String cfgname = "test14_";
+        String dtname = "test14_Dt_";
+        String optcfgname = "test14_opt_";
+        String optdtname = "test14_Dt_opt_";
         ts.testCfgGraph(cfgname);
         ts.testDt(dtname);
+        ts.optimize();
         ts.testOptCfgGraph(optcfgname);
         ts.testOptDt(optdtname);
+
+        String allocatename = "test14_colored_graph";
+        ts.testColorGraph(allocatename);
 
     }
 }

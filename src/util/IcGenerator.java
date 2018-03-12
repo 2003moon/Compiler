@@ -56,14 +56,7 @@ public class IcGenerator {
 
         Instruction instr = new Instruction(r1,r2,op);
         instr.setId(instrTable.size());
-        instr.setBbid(bb.getId());
         bb.addInstr(this, instr);
-        //TODO: for the whilestatement, the replacement is before the update, which is a bug
-        //TODO: solution:  separate parser and optimizer.
-        //TODO: for instruction, build instruction usage chain.
-
-        
-
 
 
         if(r1!=null&&r1.getType() == Result.Type.variable){
@@ -77,13 +70,15 @@ public class IcGenerator {
         }
 
         if (op == Opcode.move){
+            //TODO: before inserting phi, need to check if the variable has been assigned globally.
             r2.setVersion(instr.getId());
             if(joinBlock!=null){
                 int backup = r2.getVersion();
                 if(cfg.isDefined(r2.getAddress())){
                     backup = cfg.getVersion(r2.getAddress());
                 }
-                joinBlock.insertPhi(this,r2,bb.getBrType(),backup);
+
+                joinBlock.insertPhi(this,r2,bb,backup);
             }
             cfg.updateVersion(r2.getAddress(),r2.getVersion());// r2 is the one assigned.
         }else{

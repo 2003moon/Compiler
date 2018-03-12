@@ -12,8 +12,11 @@ public class Instruction implements Comparable<Instruction> {
     @Setter
     private int bbid;
 
+    private int pred1 =-1;
+    private int pred2 =-1;
+
     public int next;
-    public int prev; //TODO: while parsing, prev should also be maintained.
+    public int prev;
     public Result oprand1;
     public Result oprand2;
 
@@ -23,19 +26,20 @@ public class Instruction implements Comparable<Instruction> {
         this.op = op;
     }
 
-    public void updateOp(Result r){
-        if(oprand1 == null){
+    public void updateOp(int i, Result r){
+        if(i == 0){
             oprand1 = r;
         }else{
             oprand2 = r;
         }
     }
 
-    public void updatePhi(int i, Result r){
+    public void updatePhi(int i, Result r, int bbid){
+        updateOp(i, r);
         if(i == 0){
-            oprand1 = r;
+            pred1 = bbid;
         }else{
-            oprand2 = r;
+            pred2 = bbid;
         }
     }
 
@@ -89,6 +93,13 @@ public class Instruction implements Comparable<Instruction> {
             }
         }
         return  -1;
+    }
+    public boolean isBranch(){
+        return op == Opcode.bra || op == Opcode.bne || op == Opcode.beq || op == Opcode.ble
+                || op == Opcode.blt || op == Opcode.bge || op == Opcode.bgt;
+    }
+    public boolean isRegisterNeed(){
+        return op!=Opcode.store && op!=Opcode.end && op!= Opcode.write && op!= Opcode.writeNL && !isBranch();
     }
 
 }

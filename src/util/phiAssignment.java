@@ -17,12 +17,12 @@ public class phiAssignment {
         instr = null;
     }
 
-    public void updateIth(int i,int newver){
+    public void updateIth(int i,int newver, int bbid){
         versions[i] = newver;
         if(instr!=null){
             Result res = new Result(Result.Type.variable, address);
             res.setVersion(newver);
-            instr.updatePhi(i, res);
+            instr.updatePhi(i, res, bbid);
         }
 
     }

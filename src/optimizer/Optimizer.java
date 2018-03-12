@@ -1,19 +1,23 @@
 package optimizer;
 
 import frontend.parser;
+import lombok.Getter;
 import util.*;
 
-import java.beans.IntrospectionException;
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+//TODO: there should be instruction used chain. For each instruction, we need information about what instruction result it produces and where it is used.
 public class Optimizer {
+    //TODO: implement instruction useage table here.
     private Map<Integer, Map<Integer, Result>> sourceTable;
     private Map<Integer,Map<Integer, ArrayList<Integer>>> targetsTable;
     private Map<Opcode, ArrayList<Integer>> archerTable;
     private Map<Integer,Result> replaceTable;
+    @Getter
+    private Map<Integer,Set<Integer>> usageTable;
+    @Getter
+    private Map<InstrNode,Set<InstrNode>> graph;
+    @Getter
     private parser ps;
 
     public Optimizer(parser ps){
@@ -22,12 +26,18 @@ public class Optimizer {
         targetsTable = new HashMap<>();
         archerTable = new HashMap<>();
         replaceTable = new HashMap<>();
+        usageTable = new HashMap<>();
     }
 
     public void optimize(){
         initArcherTable();
         DominatorTreeComputer dtComp = ps.getDtComp();
         DFS(dtComp.getNode(0));
+        RegisterAllocator allocator = new RegisterAllocator(this);
+        allocator.buildGraph();
+        allocator.color();
+        graph = allocator.getGraph();
+
     }
 
     private void DFS(BasicBlock root){
@@ -42,9 +52,10 @@ public class Optimizer {
                 continue;
             }
             if(instr.getOp() == Opcode.move){
-                putSourceTable(instr, icGen);
+                putSourceTable(instr.oprand1, instr.oprand2, icGen);
                 if(first == root.getLastInstr()){
                     root.deleteInstr(icGen, instr);
+                    System.out.println("Instruction_"+instr.getId()+" is removed due to Copy Propagation");
                     break;
                 }
                 first = instr.next;
@@ -52,8 +63,22 @@ public class Optimizer {
                 System.out.println("Instruction_"+instr.getId()+" is removed due to Copy Propagation");
                 continue;
             }
+
+
+            if(instr.getOp() == Opcode.phi){
+                Result source = new Result(Result.Type.instruction, instr.getId());
+                Result assigned = new Result(Result.Type.variable, instr.oprand1.getAddress());
+                assigned.setVersion(instr.getId());
+                putSourceTable(source, assigned, icGen);
+            }
+
             if(instr.getOp()!=Opcode.end && instr.getOp() != Opcode.bra){
-                putTargetTable(instr);
+                putTargetTable(instr,cfg, icGen);
+            }
+
+            if(instr.getBbid() == -1){
+                first = instr.next;
+                continue;
             }
 
             putArcherTable(instr, cfg, icGen);
@@ -68,22 +93,58 @@ public class Optimizer {
         }
     }
 
+    private void replacePhi(Instruction instr, IcGenerator icGen){
+        int addr = instr.oprand1.getAddress(), ver1 = instr.oprand1.getVersion();
+        int ver2 = instr.oprand2.getVersion();
+        Result source = new Result(Result.Type.instruction, instr.getId());
+        Result assigned = new Result(Result.Type.variable, addr);
+        assigned.setVersion(instr.getId());
+        if(sourceTable.containsKey(addr)){
+            if(sourceTable.get(addr).containsKey(ver1)){
+                Result newr = sourceTable.get(addr).get(ver1);
+                instr.updateOp(0,newr);
+            }
+            if(sourceTable.get(addr).containsKey(ver2)){
+                Result newr = sourceTable.get(addr).get(ver2);
+                instr.updateOp(1,newr);
+            }
+        }
+        putSourceTable(source, assigned, icGen);
+    }
+
     private void checkReplace(Instruction instr, CFG cfg, IcGenerator icGen){
         Result r1 = instr.oprand1;
         Result r2 = instr.oprand2;
-        if(r1.getType() == Result.Type.instruction){
+        if(r1!=null && r1.getType() == Result.Type.instruction){
+            //    r1 = findSource(r1);
             if(replaceTable.containsKey(r1.getInstr_id())){
-                instr.updatePhi(0, replaceTable.get(r1.getInstr_id()));
+                instr.updateOp(0, replaceTable.get(r1.getInstr_id()));
+            }
+            //TODO: check r1 again and update the instruction usagetable.
+            if(r1.getType() == Result.Type.instruction){
+                putUsageTable(r1.getInstr_id(), instr.getId());
             }
         }
 
-        if(r2.getType() == Result.Type.instruction){
+        if(r2!=null && r2.getType() == Result.Type.instruction){
+          //  r2 = findSource(r2);
             if(replaceTable.containsKey(r2.getInstr_id())){
-                instr.updatePhi(1,replaceTable.get(r2.getInstr_id()));
+                instr.updateOp(1,replaceTable.get(r2.getInstr_id()));
+            }
+            //TODO: same.
+            if(r2.getType() == Result.Type.instruction){
+                putUsageTable(r2.getInstr_id(), instr.getId());
             }
         }
 
-        if(instr.oprand1.getType() == Result.Type.constant && instr.oprand2.getType() == Result.Type.constant){
+        replaceConstant(instr,cfg, icGen);
+
+
+    }
+
+
+    private void replaceConstant(Instruction instr, CFG cfg, IcGenerator icGen){
+        if(instr.oprand1!=null && instr.oprand2!=null && instr.oprand1.getType() == Result.Type.constant && instr.oprand2.getType() == Result.Type.constant){
             Opcode op = instr.getOp();
             Result res = icGen.constantOp(op, instr.oprand1, instr.oprand2);
             if(res!=null){
@@ -92,6 +153,13 @@ public class Optimizer {
                 bb.deleteInstr(icGen,instr);
             }
         }
+    }
+
+    private void putUsageTable(int key, int value){
+        if(!usageTable.containsKey(key)){
+            usageTable.put(key, new HashSet<>());
+        }
+        usageTable.get(key).add(value);
     }
 
     private void putArcherTable(Instruction instr, CFG cfg, IcGenerator icGen){
@@ -106,6 +174,7 @@ public class Optimizer {
                     Result replaced = new Result(Result.Type.instruction, prev.getId());
                     replaceTable.put(instr.getId(), replaced);
                     bb.deleteInstr(icGen, instr);
+                    System.out.println("Instruction_"+instr.getId()+" is replaced by instruction_"+prev);
                     return;
                 }
             }
@@ -114,12 +183,21 @@ public class Optimizer {
 
     }
 
-    private void putSourceTable(Instruction instr, IcGenerator icGen){
-        Result source = instr.oprand1;
-        Result assigned = instr.oprand2;
+    private void putSourceTable(Result source, Result assigned,  IcGenerator icGen){
         if(!sourceTable.containsKey(assigned.getAddress())){
             sourceTable.put(assigned.getAddress(), new HashMap<>());
         }
+        int srcAddr = source.getAddress();
+        int srcVer = source.getVersion();
+        while(sourceTable.containsKey(srcAddr) && sourceTable.get(srcAddr).containsKey(srcVer)){
+            source = sourceTable.get(srcAddr).get(srcVer);
+            if(source.getType() != Result.Type.variable){
+                break;
+            }
+            srcAddr = source.getAddress();
+            srcVer = source.getVersion();
+        }
+
         sourceTable.get(assigned.getAddress()).put(assigned.getVersion(),source);
 
         int tgAddr = assigned.getAddress();
@@ -128,31 +206,47 @@ public class Optimizer {
             for(Integer id : targetsTable.get(tgAddr).get(tgVer)){
                 Instruction cached = icGen.getInstruction(id);
                 if(cached.oprand1.compareTo(assigned)==0){
-                    cached.updatePhi(0, source);
+                    cached.updateOp(0, source);
                 }else{
-                    cached.updatePhi(1, source);
+                    cached.updateOp(1, source);
                 }
+                if(source.getType() == Result.Type.instruction){
+                    putUsageTable(source.getInstr_id(), id);
+                }
+                //TODO: check if source is instruction, if so, update its usage table.
             }
+            targetsTable.get(tgAddr).remove(tgVer);
         }
-        targetsTable.get(tgAddr).remove(tgVer);
+
     }
 
-    private void putTargetTable(Instruction instr){
+    private void putTargetTable(Instruction instr, CFG cfg, IcGenerator icGen){
         updateTargetTable(instr.oprand1, instr, 0);
         updateTargetTable(instr.oprand2, instr, 1);
+        replaceConstant(instr,cfg,icGen);
     }
 
     private void updateTargetTable(Result r, Instruction instr, int i){
-        if(r.getType() != Result.Type.variable){
+        if(r==null ||  r.getType() != Result.Type.variable){
             return;
         }
 
         int address = r.getAddress();
         int version = r.getVersion();
 
-        if(sourceTable.containsKey(address) && sourceTable.get(address).containsKey(version)){
-            Result newr = sourceTable.get(address).get(version);
-            instr.updatePhi(i, newr);
+        Result newr = null;
+        while(sourceTable.containsKey(address) && sourceTable.get(address).containsKey(version)){
+            newr = sourceTable.get(address).get(version);
+            address = newr.getAddress();
+            version = newr.getVersion();
+        }
+
+        if(newr!=null){
+            instr.updateOp(i, newr);
+            if(newr.getType() == Result.Type.instruction){
+                putUsageTable(newr.getInstr_id(),instr.getId());
+            }
+            //TODO: check if newr is instruction and update instruction usage table.
         }else{
             if(!targetsTable.containsKey(address)){
                 targetsTable.put(address,new HashMap<>());
@@ -176,6 +270,19 @@ public class Optimizer {
         archerTable.put(Opcode.load, new ArrayList<>());
         archerTable.put(Opcode.store, new ArrayList<>());
 
+    }
+
+    private Result findSource(Result r) {
+        Result replace = r;
+        if (replaceTable.containsKey(r.getInstr_id())) {
+            replace = replaceTable.get(r.getInstr_id());
+            if (replace.getType() == Result.Type.variable) {
+                if (sourceTable.containsKey(replace.getAddress()) && sourceTable.get(replace.getAddress()).containsKey(replace.getVersion())) {
+                    replace = sourceTable.get(replace.getAddress()).get(replace.getVersion());
+                }
+            }
+        }
+        return replace;
     }
 
 }

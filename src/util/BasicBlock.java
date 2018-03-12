@@ -97,8 +97,10 @@ public class BasicBlock {
 
             Instruction lastInstruction = icGen.getInstrTable().get(lastInstr);
             lastInstruction.next = newInstruction.getId();
+            newInstruction.prev = lastInstr;
             lastInstr = newInstruction.getId();
         }
+        newInstruction.setBbid(id);
         icGen.addinstraTable(newInstruction.getId(), newInstruction);
     }
 
@@ -128,7 +130,8 @@ public class BasicBlock {
             firstInstr = newInstruction.getId();
             lastInstr = newInstruction.getId();
         }else{
-
+            Instruction first = icGen.getInstruction(firstInstr);
+            first.prev = newInstruction.getId();
             newInstruction.next = firstInstr;
             firstInstr = newInstruction.getId();
         }
@@ -144,22 +147,22 @@ public class BasicBlock {
 
     }
 
-    public void insertPhi(IcGenerator icGen, Result r, BrType tp, int backup){
+    public void insertPhi(IcGenerator icGen, Result r, BasicBlock bb, int backup){
         int address = r.getAddress();
         phiAssignment pa = null;
         if(!phiTable.containsKey(address)){
             pa = new phiAssignment(address);
-            pa.updateIth(0,r.getVersion());
-            pa.updateIth(1,backup);
+            pa.updateIth(0,r.getVersion(), bb.getId());
+            pa.updateIth(1,backup,-1);
             pa.backupV = backup;
             phiTable.put(address, pa);
             pa.constructInstr(icGen, this);
         }else{
             pa = phiTable.get(address);
-            if(tp == BrType.then){
-                pa.updateIth(0, r.getVersion());
+            if(bb.getBrType() == BrType.then){
+                pa.updateIth(0, r.getVersion(), bb.getId());
             }else{
-                pa.updateIth(1, r.getVersion());
+                pa.updateIth(1, r.getVersion(), bb.getId());
             }
 
         }
@@ -178,7 +181,7 @@ public class BasicBlock {
             if(outerJoinNode!=null){
                 Result r = new Result(Result.Type.variable, address);
                 r.setVersion(cfg.getVersion(address));
-                outerJoinNode.insertPhi(icGen,r,this.brType, pa.backupV);
+                outerJoinNode.insertPhi(icGen,r,this, pa.backupV);
             }
         }
     }
@@ -191,5 +194,17 @@ public class BasicBlock {
 
     public boolean hasPhi(int address){
         return phiTable.containsKey(address);
+    }
+
+    public int findPred(int target, int helper){
+        if(target == -1){
+            for(Integer bbid : predecessors){
+                if(bbid != helper){
+                    return bbid;
+                }
+            }
+        }
+
+        return target;
     }
 }
