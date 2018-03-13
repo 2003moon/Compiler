@@ -12,8 +12,8 @@ public class Instruction implements Comparable<Instruction> {
     @Setter
     private int bbid;
 
-    private int pred1 =-1;
-    private int pred2 =-1;
+    public int pred1 =-1;
+    public int pred2 =-1;
 
     public int next;
     public int prev;

@@ -45,6 +45,9 @@ public class Optimizer {
         CFG cfg = icGen.getMaincfg();
         int first = root.getFirstInstr();
         while(true){
+            if(first==21){
+                int test = 0;
+            }
             Instruction instr = icGen.getInstruction(first);
             checkReplace(instr, cfg, icGen);
             if(instr.getBbid() == -1){
@@ -184,6 +187,7 @@ public class Optimizer {
     }
 
     private void putSourceTable(Result source, Result assigned,  IcGenerator icGen){
+        //TODO: implement the usageTable
         if(!sourceTable.containsKey(assigned.getAddress())){
             sourceTable.put(assigned.getAddress(), new HashMap<>());
         }

@@ -40,4 +40,8 @@ public class InstrNode {
         return instrId == node.getInstrId();
     }
 
+    public int hashCode(){
+        return instrId;
+    }
+
 }

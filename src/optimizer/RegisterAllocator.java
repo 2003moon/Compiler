@@ -14,6 +14,7 @@ public class RegisterAllocator {
     private Optimizer opti;
     @Getter
     private Map<InstrNode, Set<InstrNode>> graph;
+    private Map<Integer, InstrNode> idToNode;
     private Map<InstrNode,Integer> degree;
     private Stack<InstrNode> nds;
 
@@ -23,6 +24,7 @@ public class RegisterAllocator {
         this.opti = opti;
         graph = new HashMap<>();
         degree = new HashMap<>();
+        idToNode = new HashMap<>();
         nds = new Stack<>();
     }
 
@@ -52,6 +54,9 @@ public class RegisterAllocator {
         nds.push(nd);
         nd.isRemoved = true;
         for(InstrNode nb: graph.get(nd)){
+            if(nb.removed()){
+                continue;
+            }
             int dg = degree.get(nb);
             dg--;
             degree.put(nb,dg);
@@ -67,7 +72,7 @@ public class RegisterAllocator {
     private void select(){
         while(!nds.isEmpty()){
             InstrNode nd = nds.pop();
-            Set<InstrNode> neighbors = graph.get(nds);
+            Set<InstrNode> neighbors = graph.get(nd);
             Set<Integer> unavaliableColor = new HashSet<Integer>();
             for(InstrNode nb: neighbors){
                 if(!nb.removed()&& nb.colored()){
@@ -95,7 +100,13 @@ public class RegisterAllocator {
         for(Map.Entry<Integer, Set<Integer>> entry : usageTable.entrySet()){
             Set<Integer> visitedBB = new HashSet<>();
             int instr_id = entry.getKey();
+            if(instr_id == 15){
+                int test = 0;
+            }
             Instruction var = icGen.getInstruction(instr_id);
+            if(var.getBbid() == -1){
+                continue;
+            }
             for(Integer use_id : entry.getValue()){
                 Instruction instr = icGen.getInstruction(use_id);
                 if(instr.getBbid() == -1){
@@ -146,7 +157,7 @@ public class RegisterAllocator {
     }
 
     private void LiveOutAtStatement(Instruction instr, Instruction var, Set<Integer> M){
-        if(instr.getId()!=var.getId() && instr.isRegisterNeed()){
+        if(instr.isRegisterNeed()){
             addEdges(instr,var);
         }
         if(instr.getId()!=var.getId()){
@@ -155,18 +166,29 @@ public class RegisterAllocator {
     }
 
     private void addEdges(Instruction instr1, Instruction instr2){
-        InstrNode nd1 = new InstrNode(instr1.getId());
-        InstrNode nd2 = new InstrNode(instr2.getId());
-        if(!graph.containsKey(nd1)){
+
+
+        if(!idToNode.containsKey(instr1.getId())){
+            InstrNode nd1 = new InstrNode(instr1.getId());
             graph.put(nd1, new HashSet<>());
+            idToNode.put(instr1.getId(), nd1);
         }
 
-        if(!graph.containsKey(nd2)){
+        if(!idToNode.containsKey(instr2.getId())){
+            InstrNode nd2 = new InstrNode(instr2.getId());
             graph.put(nd2, new HashSet<>());
+            idToNode.put(instr2.getId(), nd2);
         }
 
-        graph.get(nd1).add(nd2);
-        graph.get(nd2).add(nd1);
+        InstrNode nd1 = idToNode.get(instr1.getId());
+        InstrNode nd2 = idToNode.get(instr2.getId());
+
+        if(!nd1.equals(nd2)){
+            graph.get(nd1).add(nd2);
+            graph.get(nd2).add(nd1);
+        }
+
+
     }
 
 

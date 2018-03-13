@@ -135,7 +135,9 @@ public class BasicBlock {
             newInstruction.next = firstInstr;
             firstInstr = newInstruction.getId();
         }
+        newInstruction.setBbid(id);
         icGen.addinstraTable(newInstruction.getId(), newInstruction);
+
     }
 
     public void link(BasicBlock target){

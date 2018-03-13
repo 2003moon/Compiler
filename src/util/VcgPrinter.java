@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.Map;
 
@@ -57,16 +58,23 @@ public class VcgPrinter {
     }
 
     public void printGraph(Map<InstrNode, Set<InstrNode>> graph){
+        Map<Integer, Boolean> visited = new HashMap<>();
         for(Map.Entry<InstrNode, Set<InstrNode>> entry:graph.entrySet()){
-            InstrNode firstNode = entry.getKey();
-            break;
+            InstrNode nd = entry.getKey();
+            visited.put(nd.getInstrId(), false);
         }
         ptw.println("graph: { title: \"Graph\"");
         ptw.println("layoutalgorithm: dfs");
         ptw.println("manhattan_edges: yes");
         ptw.println("smanhattan_edges: yes");
+        for(Map.Entry<InstrNode, Set<InstrNode>> entry:graph.entrySet()){
+            InstrNode nd = entry.getKey();
+            printGraphDfs(nd, graph, visited);
 
+        }
 
+        ptw.println("}");
+        ptw.close();
 
     }
 
