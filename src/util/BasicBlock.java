@@ -8,25 +8,36 @@ import java.util.*;
 
 @Getter
 public class BasicBlock {
+    //TODO: implement branch remove for constant folding.
 
     public int immDom;
     private int firstInstr;
     private int lastInstr;
+    private int totalInstrs;
     private int id;
     private int cfgid;
     private Set<Integer> successors;
     private Set<Integer> predecessors;
     private ArrayList<Integer> child;
     private TreeMap<Integer, Result> symbolTable; //variable's version in the current BB
+    @Getter
     private Map<Integer, phiAssignment> phiTable; // <address, phi function>
     private Map<Integer,Result> usageTable;
+    @Getter
+    private Instruction dummy;
+
 
     @Setter
     private BrType brType;
 
     public enum BrType{
-        then,
-        others;
+        Then,
+        Elese,
+        If,
+        While,
+        Loopbody,
+        body;
+
     }
 
     public BasicBlock(int id, int cfgid){
@@ -40,7 +51,8 @@ public class BasicBlock {
         usageTable = new HashMap<>();
         firstInstr = -1;
         lastInstr = -1;
-        brType = BrType.others;
+        totalInstrs = 0;
+        brType = BrType.body;
         immDom = -1;
     }
 
@@ -48,8 +60,25 @@ public class BasicBlock {
         child.add(nodeId);
     }
 
+    public void increTotalInstr(){
+        totalInstrs++;
+    }
+
+
+
     public boolean isDom(int dom){
         return immDom == dom;
+    }
+
+    public Instruction createDummyInstr(){
+        dummy = new Instruction(null, null, Opcode.dummy);
+        dummy.setId(-2);
+        dummy.setBbid(id);
+        return dummy;
+    }
+
+    public boolean isEmpty(){
+        return firstInstr == -1;
     }
 
     public Result getSymbol(int address){
@@ -89,39 +118,78 @@ public class BasicBlock {
         }
     }
 
+    public void addInstrBefore(IcGenerator icGen, Instruction newInstruction, Instruction next){
+        next.linkPrevInstr(newInstruction);
+        if(next.getId() == firstInstr){
+            firstInstr = newInstruction.getId();
+        }
+        newInstruction.setBbid(id);
+        icGen.addinstraTable(newInstruction.getId(), newInstruction);
+        totalInstrs++;
+
+    }
+
     public void addInstr(IcGenerator icGen, Instruction newInstruction){
         if(firstInstr == -1){
             firstInstr = newInstruction.getId();
             lastInstr = newInstruction.getId();
+            if(dummy!=null){
+               dummy.linkNextInstr(newInstruction);
+            }
         }else{
-
             Instruction lastInstruction = icGen.getInstrTable().get(lastInstr);
-            lastInstruction.next = newInstruction.getId();
-            newInstruction.prev = lastInstr;
+            lastInstruction.linkNextInstr(newInstruction);
+        /*    newInstruction.next = lastInstruction.next;
+            lastInstruction.next = newInstruction;
+            newInstruction.prev = lastInstruction;
+            if(newInstruction.next!=null){
+                newInstruction.next.prev = newInstruction;
+            }*/
+
             lastInstr = newInstruction.getId();
         }
         newInstruction.setBbid(id);
         icGen.addinstraTable(newInstruction.getId(), newInstruction);
+        totalInstrs++;
     }
 
-    public void deleteInstr(IcGenerator icGen, Instruction instr){
+    public void deleteInstr(IcGenerator icGen, Instruction instr){//TODO: if deletion causes empty block, dummy instruction should be inserted to keep the link information of the last instruction and the next.
         int instr_id = instr.getId();
+        if(instr_id == 4){
+            int test = 0;
+        }
+        Instruction prev = instr.prev;
+        Instruction next = instr.next;
+
         if(instr_id == firstInstr && instr_id == lastInstr){
             firstInstr = -1;
             lastInstr = -1;
-        }else if(instr_id == firstInstr){
-            firstInstr = instr.next;
-        }else if(instr_id == lastInstr){
-            Instruction prev = icGen.getInstruction(instr.prev);
-            prev.next = instr.next;
-            lastInstr = prev.getId();
-        }else{
-            Instruction prev = icGen.getInstruction(instr.prev);
-            Instruction next = icGen.getInstruction(instr.next);
-            prev.next = next.getId();
-            next.prev = prev.getId();
-        }
+            createDummyInstr();
+            if(prev!=null){
+                prev.next = dummy;
+            }
 
+            if(next!=null){
+                next.prev = dummy;
+            }
+            dummy.prev = prev;
+            dummy.next = next;
+
+        }else{
+            if(instr_id == firstInstr){
+                firstInstr = next.getId();
+            }else if (instr_id == lastInstr){
+                lastInstr = prev.getId();
+            }
+            if(prev!=null){
+                prev.next = next;
+            }
+            if(next!=null){
+                next.prev = prev;
+            }
+
+        }
+        totalInstrs--;
         instr.setBbid(-1);
     }
 
@@ -131,12 +199,17 @@ public class BasicBlock {
             lastInstr = newInstruction.getId();
         }else{
             Instruction first = icGen.getInstruction(firstInstr);
-            first.prev = newInstruction.getId();
-            newInstruction.next = firstInstr;
+            first.prev = newInstruction;
+            newInstruction.next = first;
             firstInstr = newInstruction.getId();
         }
         newInstruction.setBbid(id);
         icGen.addinstraTable(newInstruction.getId(), newInstruction);
+        totalInstrs++;
+
+    }
+
+    public void insertBetween(Instruction prev, Instruction next){
 
     }
 
@@ -161,7 +234,7 @@ public class BasicBlock {
             pa.constructInstr(icGen, this);
         }else{
             pa = phiTable.get(address);
-            if(bb.getBrType() == BrType.then){
+            if(bb.getBrType() == BrType.Then){
                 pa.updateIth(0, r.getVersion(), bb.getId());
             }else{
                 pa.updateIth(1, r.getVersion(), bb.getId());

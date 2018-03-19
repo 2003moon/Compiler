@@ -495,6 +495,7 @@ public class parser {
     private Result ifStatement(BasicBlock currBB, BasicBlock joinNode, Map<Integer, ArrayList<Integer>> useChain, CFG currCFG)throws NonDeclaredException, NotDefinedException, NotExpectedException, IOException{
         //TODO: empty block will cause exception.
         Result x = null;
+        currBB.setBrType(BasicBlock.BrType.If);
         relation(currBB, joinNode, useChain);
         int joinid = currCFG.createBB();
         BasicBlock joinbb = currCFG.getBlock(joinid);
@@ -502,7 +503,7 @@ public class parser {
         currBB.addChild(joinid);
         joinbb.immDom = currBB.getId();
 
-        joinbb.setBrType(currBB.getBrType());
+        joinbb.setBrType(BasicBlock.BrType.body);
         if (currToken!=Token.THEN){
             throw new NotExpectedException("THEN is expected");
         }
@@ -512,37 +513,76 @@ public class parser {
         int newthenid = currCFG.createBB();
         BasicBlock newthenbb = currCFG.getBlock(newthenid);
         initDtNode(newthenbb);
-        newthenbb.setBrType(BasicBlock.BrType.then);
         currBB.link(newthenbb);
         currBB.addChild(newthenid);
         newthenbb.immDom = currBB.getId();
         newthenbb = statSequence(newthenbb,joinbb, useChain, currCFG);
+        newthenbb.setBrType(BasicBlock.BrType.Then);
+        newthenbb.addBranch(icGen,Opcode.bra, new Result(Result.Type.branch,joinid),null);
+        //TODO: to see if newthenbb is equal to the original one.
+        if(newthenbb.getId()!=newthenid){
+            BasicBlock oldthenbb = currCFG.getBlock(newthenid);
+            connectInstr(last,icGen.getInstruction(oldthenbb.getFirstInstr()));
+        }else{
+            connectInstr(last, icGen.getInstruction(newthenbb.getFirstInstr()));
+        }
+
         newthenbb.link(joinbb);
-        last.next = newthenbb.getFirstInstr();
+        Instruction newthenlast = null;
+
+
+
+        if(newthenbb.isEmpty()){
+            newthenlast = newthenbb.getDummy();
+        }else{
+            newthenlast = icGen.getInstruction(newthenbb.getLastInstr());
+        }
+
 
         icGen.resetVersion(currCFG, joinbb);
-        //next();
+        //TODO: even else is empty, there should be a branch to.
+        int newelseid = currCFG.createBB();
+        BasicBlock newelsebb = currCFG.getBlock(newelseid);
+        initDtNode(newelsebb);
+        currBB.link(newelsebb);
+        currBB.addChild(newelseid);
+        newelsebb.immDom = currBB.getId();
         if (currToken == Token.ELSE){
-            int newelseid = currCFG.createBB();
-            BasicBlock newelsebb = currCFG.getBlock(newelseid);
-            initDtNode(newelsebb);
-            currBB.link(newelsebb);
-            currBB.addChild(newelseid);
-            newelsebb.immDom = currBB.getId();
-            last.updateOp(1, new Result(Result.Type.branch, newelseid));
             next();
             newelsebb = statSequence(newelsebb,joinbb, useChain, currCFG);
-            newelsebb.link(joinbb);
-            Instruction newelselast = icGen.getInstruction(newelsebb.getLastInstr());
-            newelselast.next = joinbb.getFirstInstr();
-            newthenbb.addBranch(icGen,Opcode.bra, new Result(Result.Type.branch,joinid),null);
+            if(newelsebb.getId() != newelseid){
+                BasicBlock oldelsebb = currCFG.getBlock(newelseid);
+                connectInstr(newthenlast, icGen.getInstruction(oldelsebb.getFirstInstr()));
+            }else{
+                connectInstr(newthenlast,  icGen.getInstruction(newelsebb.getFirstInstr()));
+            }
         }else{
-           // currBB.link(joinbb);
-            Instruction newthenlast = icGen.getInstruction(newthenbb.getLastInstr());
-            newthenlast.next = joinbb.getFirstInstr();
-            last.updateOp(1, new Result(Result.Type.branch, joinid));
+            newelsebb.createDummyInstr();
+            connectInstr(newthenlast, newelsebb.getDummy());
         }
-     //   next();
+
+        newelsebb.setBrType(BasicBlock.BrType.Elese);
+
+        Instruction newelselast = null;
+
+        if(newelsebb.isEmpty()){
+            newelselast = newelsebb.getDummy();
+        }else{
+            newelselast = icGen.getInstruction(newelsebb.getLastInstr());
+        }
+
+        newelsebb.link(joinbb);
+        last.updateOp(1, new Result(Result.Type.branch, newelseid));
+
+        //TODO: if joinbb is empty, insert dummy instruction.
+
+        if(joinbb.isEmpty()){
+            joinbb.createDummyInstr();
+            connectInstr(newelselast, joinbb.getDummy());
+        }else{
+            connectInstr(newelselast, icGen.getInstruction(joinbb.getFirstInstr()));
+        }
+
         if(currToken!=Token.FI){
             throw new NotExpectedException("FI is expected");
         }
@@ -554,7 +594,7 @@ public class parser {
 
     private Result whileStatement(BasicBlock bb, BasicBlock joinBB, Map<Integer, ArrayList<Integer>> usageChain,  CFG cfg)throws NonDeclaredException, NotDefinedException,NotExpectedException, IOException{
         BasicBlock whileBB = bb;
-        if(bb.getFirstInstr()!=-1){
+        if(!bb.isEmpty()){
            int whileid = cfg.createBB();
            whileBB = cfg.getBlock(whileid);
            initDtNode(whileBB);
@@ -563,8 +603,12 @@ public class parser {
             whileBB.immDom = bb.getId();
         }
       //  HashMap<Integer, ArrayList<Integer>> usageChain = new HashMap<Integer, ArrayList<Integer>>();
-
+        whileBB.setBrType(BasicBlock.BrType.While);
         relation(whileBB, whileBB, usageChain);
+
+        if(whileBB.getId() != bb.getId()){
+            connectInstr(icGen.getInstruction(bb.getLastInstr()), icGen.getInstruction(whileBB.getFirstInstr()));
+        }
 
         if(currToken != Token.DO){
             throw  new NotExpectedException("DO is expected");
@@ -578,9 +622,17 @@ public class parser {
         whileBB.addChild(loopid);
         loopBB.immDom = whileBB.getId();
         loopBB = statSequence(loopBB, whileBB, usageChain, cfg);
+        loopBB.setBrType(BasicBlock.BrType.Loopbody);
+        //TODO: to see if loopbb is the original one.
+        if(loopBB.getId()!=loopid){
+            BasicBlock oldloopBB =cfg.getBlock(loopid);
+            connectInstr(icGen.getInstruction(whileBB.getLastInstr()), icGen.getInstruction(oldloopBB.getLastInstr()));
+        }else{
+            connectInstr(icGen.getInstruction(whileBB.getLastInstr()), icGen.getInstruction(loopBB.getFirstInstr()));
+        }
+
         loopBB.addBranch(icGen, Opcode.bra, new Result(Result.Type.branch,whileBB.getId()), null);
         loopBB.link(whileBB);
-    //    next();
         if(currToken!=Token.OD){
             throw  new NotExpectedException("OD is expected");
         }
@@ -589,6 +641,9 @@ public class parser {
         int branchid = cfg.createBB();
         BasicBlock branchbb = cfg.getBlock(branchid);
         initDtNode(branchbb);
+        branchbb.createDummyInstr();
+        Instruction loopLast = icGen.getInstruction(loopBB.getLastInstr());
+        connectInstr(loopLast,branchbb.getDummy());
         Instruction whileLast = icGen.getInstruction(whileBB.getLastInstr());
         whileLast.updateOp(1, new Result(Result.Type.branch, branchid));
         whileBB.link(branchbb);
@@ -599,6 +654,11 @@ public class parser {
     }
     private void next() throws IOException{
         currToken = sc.getNextToken();
+    }
+
+    private void connectInstr(Instruction instr1, Instruction instr2){
+        instr1.next = instr2;
+        instr2.prev = instr1;
     }
 
 

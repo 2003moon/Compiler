@@ -15,10 +15,11 @@ public class Instruction implements Comparable<Instruction> {
     public int pred1 =-1;
     public int pred2 =-1;
 
-    public int next;
-    public int prev;
+    public Instruction next;
+    public Instruction prev;
     public Result oprand1;
     public Result oprand2;
+
 
     public Instruction(Result oprand1, Result oprand2, Opcode op){
         this.oprand1 = oprand1;
@@ -41,6 +42,52 @@ public class Instruction implements Comparable<Instruction> {
         }else{
             pred2 = bbid;
         }
+    }
+
+    public void linkNextInstr(Instruction instr){
+        instr.next = next;
+        if(next!=null){
+            next.prev = instr;
+        }
+        next = instr;
+        if(instr != null){
+            instr.prev = this;
+        }
+    }
+
+    public void linkPrevInstr(Instruction instr){
+        instr.next = this;
+        if(prev!=null){
+            prev.next = instr;
+        }
+        prev = instr;
+        if(instr!=null){
+            instr.prev = prev;
+        }
+    }
+
+    public void insertBetween(Instruction prev, Instruction next, CFG cfg){
+        if(prev!=null){
+            prev.next = this;
+        }
+        this.prev = prev;
+        if(next!=null){
+            next.prev = this;
+        }
+        this.next = next;
+
+        BasicBlock bb = cfg.getBlock(bbid);
+        bb.increTotalInstr();
+
+
+    }
+
+    public boolean isDummy(){
+        return id == -2;
+    }
+
+    public boolean hasConst(){
+        return oprand1.getType() == Result.Type.constant || oprand2.getType() == Result.Type.constant;
     }
 
     public Result getOprand(int id) {
@@ -100,6 +147,18 @@ public class Instruction implements Comparable<Instruction> {
     }
     public boolean isRegisterNeed(){
         return op!=Opcode.store && op!=Opcode.end && op!= Opcode.write && op!= Opcode.writeNL && !isBranch();
+    }
+
+    public boolean isIO(){
+        return op == Opcode.read || op == Opcode.write || op ==Opcode.writeNL;
+    }
+
+    public boolean isEnd(){
+        return op == Opcode.end;
+    }
+
+    public boolean isPhi(){
+        return op == Opcode.phi;
     }
 
 }

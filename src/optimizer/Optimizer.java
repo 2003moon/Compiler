@@ -18,6 +18,8 @@ public class Optimizer {
     @Getter
     private Map<InstrNode,Set<InstrNode>> graph;
     @Getter
+    private Map<Integer, InstrNode> idToNode;
+    @Getter
     private parser ps;
 
     public Optimizer(parser ps){
@@ -36,60 +38,66 @@ public class Optimizer {
         RegisterAllocator allocator = new RegisterAllocator(this);
         allocator.buildGraph();
         allocator.color();
+        allocator.removePhi();
         graph = allocator.getGraph();
+        idToNode = allocator.getIdToNode();
 
     }
 
     private void DFS(BasicBlock root){
         IcGenerator icGen = ps.getIcGen();
         CFG cfg = icGen.getMaincfg();
-        int first = root.getFirstInstr();
-        while(true){
-            if(first==21){
-                int test = 0;
-            }
-            Instruction instr = icGen.getInstruction(first);
-            checkReplace(instr, cfg, icGen);
-            if(instr.getBbid() == -1){
-                first = instr.next;
-                continue;
-            }
-            if(instr.getOp() == Opcode.move){
-                putSourceTable(instr.oprand1, instr.oprand2, icGen);
-                if(first == root.getLastInstr()){
+        if(root.isEmpty()){
+          /*  Instruction dummy = root.getDummy();
+            dummy.prev.next = dummy.next;
+            dummy.next.prev = dummy.prev;*/
+        }else{
+            int first = root.getFirstInstr();
+            while(true){
+                Instruction instr = icGen.getInstruction(first);
+                checkReplace(instr, cfg, icGen);
+                if(instr.getBbid() == -1){
+                    first = instr.next.getId();
+                    continue;
+                }
+                if(instr.getOp() == Opcode.move){
+                    putSourceTable(instr.oprand1, instr.oprand2, icGen);
+                    if(first == root.getLastInstr()){
+                        root.deleteInstr(icGen, instr);
+                        System.out.println("Instruction_"+instr.getId()+" is removed due to Copy Propagation");
+                        break;
+                    }
+                    first = instr.next.getId();
                     root.deleteInstr(icGen, instr);
                     System.out.println("Instruction_"+instr.getId()+" is removed due to Copy Propagation");
+                    continue;
+                }
+
+
+                if(instr.getOp() == Opcode.phi){
+                    Result source = new Result(Result.Type.instruction, instr.getId());
+                    Result assigned = new Result(Result.Type.variable, instr.oprand1.getAddress());
+                    assigned.setVersion(instr.getId());
+                    putSourceTable(source, assigned, icGen);
+                }
+
+                if(instr.getOp()!=Opcode.end && instr.getOp() != Opcode.bra){
+                    putTargetTable(instr,cfg, icGen);
+                }
+
+                if(instr.getBbid() == -1){
+                    first = instr.next.getId();
+                    continue;
+                }
+
+                putArcherTable(instr, cfg, icGen);
+                if(first == root.getLastInstr()){
                     break;
                 }
-                first = instr.next;
-                root.deleteInstr(icGen, instr);
-                System.out.println("Instruction_"+instr.getId()+" is removed due to Copy Propagation");
-                continue;
+                first = instr.next.getId();
             }
-
-
-            if(instr.getOp() == Opcode.phi){
-                Result source = new Result(Result.Type.instruction, instr.getId());
-                Result assigned = new Result(Result.Type.variable, instr.oprand1.getAddress());
-                assigned.setVersion(instr.getId());
-                putSourceTable(source, assigned, icGen);
-            }
-
-            if(instr.getOp()!=Opcode.end && instr.getOp() != Opcode.bra){
-                putTargetTable(instr,cfg, icGen);
-            }
-
-            if(instr.getBbid() == -1){
-                first = instr.next;
-                continue;
-            }
-
-            putArcherTable(instr, cfg, icGen);
-            if(first == root.getLastInstr()){
-                break;
-            }
-            first = instr.next;
         }
+
 
         for(Integer child : root.getChild()){
             DFS(cfg.getBlock(child));
@@ -123,7 +131,6 @@ public class Optimizer {
             if(replaceTable.containsKey(r1.getInstr_id())){
                 instr.updateOp(0, replaceTable.get(r1.getInstr_id()));
             }
-            //TODO: check r1 again and update the instruction usagetable.
             if(r1.getType() == Result.Type.instruction){
                 putUsageTable(r1.getInstr_id(), instr.getId());
             }
@@ -134,7 +141,7 @@ public class Optimizer {
             if(replaceTable.containsKey(r2.getInstr_id())){
                 instr.updateOp(1,replaceTable.get(r2.getInstr_id()));
             }
-            //TODO: same.
+
             if(r2.getType() == Result.Type.instruction){
                 putUsageTable(r2.getInstr_id(), instr.getId());
             }
@@ -147,6 +154,7 @@ public class Optimizer {
 
 
     private void replaceConstant(Instruction instr, CFG cfg, IcGenerator icGen){
+        //TODO: implement the situation for cmp and bge.
         if(instr.oprand1!=null && instr.oprand2!=null && instr.oprand1.getType() == Result.Type.constant && instr.oprand2.getType() == Result.Type.constant){
             Opcode op = instr.getOp();
             Result res = icGen.constantOp(op, instr.oprand1, instr.oprand2);
@@ -206,6 +214,9 @@ public class Optimizer {
 
         int tgAddr = assigned.getAddress();
         int tgVer = assigned.getVersion();
+        if(source.getType() == Result.Type.constant){
+            source = new Result(Result.Type.constant,source.getValue());
+        }
         if(targetsTable.containsKey(tgAddr) && targetsTable.get(tgAddr).containsKey(tgVer)){
             for(Integer id : targetsTable.get(tgAddr).get(tgVer)){
                 Instruction cached = icGen.getInstruction(id);
@@ -246,6 +257,9 @@ public class Optimizer {
         }
 
         if(newr!=null){
+            if(newr.getType() == Result.Type.constant){
+                newr = new Result(Result.Type.constant,newr.getValue());
+            }
             instr.updateOp(i, newr);
             if(newr.getType() == Result.Type.instruction){
                 putUsageTable(newr.getInstr_id(),instr.getId());

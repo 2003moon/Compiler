@@ -6,12 +6,15 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Getter
+@Setter
 public class Result implements Comparable<Result> {
+   //TODO: there should be a register type
     public enum Type{
         instruction,
         constant,
         variable,
         branch,
+        register,
         function;
     }
     public boolean isArray;
@@ -23,6 +26,8 @@ public class Result implements Comparable<Result> {
     private int address;
 
     private int instr_id;
+
+    private int regNo;
 
     private int br_id;
 
@@ -41,7 +46,9 @@ public class Result implements Comparable<Result> {
             address = val;
         }else if(type == Type.branch){
             br_id = val;
-        }else{
+        }else if(type == Type.register){
+            regNo = val;
+        } else{
             address = val;
         }
 
@@ -81,6 +88,8 @@ public class Result implements Comparable<Result> {
             sb.append(")");
         }else if(type == Type.branch){
             sb.append("branch_"+br_id);
+        }else if(type == Type.register){
+            sb.append("register_"+regNo);
         }
         return sb.toString();
     }

@@ -169,7 +169,10 @@ public class VcgPrinter {
                 Instruction instr = icGen.getInstruction(first);
                 String line = instr.toString(ps.getSc(), cfg);
                 ptw.println(line);
-                first = instr.next;
+                if(instr.next == null){
+                    int test = 0;
+                }
+                first = instr.next.getId();
             }
             Instruction instr = icGen.getInstruction(first);
             String line = instr.toString(ps.getSc(), cfg);

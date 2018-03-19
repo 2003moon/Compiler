@@ -26,7 +26,9 @@ public enum Opcode {
     write,
     writeNL,
     call,
-    returnTo;
+    returnTo,
+    dummy,
+    deallocate;
 
     public static Opcode getOp(int op){
         switch (op){

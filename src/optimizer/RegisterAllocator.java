@@ -8,15 +8,18 @@ import util.*;
 import java.util.*;
 
 public class RegisterAllocator {
-
+//TODO: after succesfully allocate register, remove phi function(replace the register)
     private final static int regNum = 8;
 
     private Optimizer opti;
     @Getter
     private Map<InstrNode, Set<InstrNode>> graph;
+    @Getter
     private Map<Integer, InstrNode> idToNode;
     private Map<InstrNode,Integer> degree;
+    private Set<Integer> phis;
     private Stack<InstrNode> nds;
+    private boolean[] regStat;
 
 
 
@@ -25,7 +28,9 @@ public class RegisterAllocator {
         graph = new HashMap<>();
         degree = new HashMap<>();
         idToNode = new HashMap<>();
+        phis = new HashSet<>();
         nds = new Stack<>();
+        regStat = new boolean[regNum];
     }
 
     public void buildGraph(){
@@ -39,6 +44,75 @@ public class RegisterAllocator {
         simplify();
         select();
 
+    }
+
+    public void removePhi(){//TODO: it is possible that result is a register.
+        parser ps = opti.getPs();
+        IcGenerator icGen = ps.getIcGen();
+        CFG cfg = icGen.getCfg(0);
+        for(Integer instrid : phis){
+            InstrNode nd = idToNode.get(instrid);
+            if(nd.removed()){
+
+            }else{
+                if(instrid==24){
+                    int test = 0;
+                }
+                Instruction instr = icGen.getInstruction(instrid);
+                BasicBlock bb = cfg.getBlock(instr.getBbid());
+                Result opr1 = instr.oprand1;
+                Result opr2 = instr.oprand2;
+                int pred1 = bb.findPred(instr.getPred1(), instr.getPred2());
+                int pred2 = bb.findPred(instr.getPred2(), instr.getPred1());
+                BasicBlock predBB1 = cfg.getBlock(pred1);
+                BasicBlock predBB2 = cfg.getBlock(pred2);
+                Result res = new Result(Result.Type.register, nd.regNo);
+
+                if(opr1.getType() == Result.Type.constant && opr2.getType() == Result.Type.constant){
+                   Instruction instr1 = new Instruction(opr1,res, Opcode.move);
+                   instr1.setId(icGen.getInstrTable().size());
+                   predBB1.addInstr(icGen,instr1);
+                   Instruction instr2 = new Instruction(opr2, res, Opcode.move);//TODO: instr's id should be set.
+                   instr2.setId(icGen.getInstrTable().size());
+                   predBB2.addInstr(icGen,instr2);
+                }else if(opr1.getType() == Result.Type.constant){
+                    Instruction instr1 = new Instruction(opr1,res,Opcode.move);
+                    instr1.setId(icGen.getInstrTable().size());
+                    predBB1.addInstr(icGen, instr1);
+                    InstrNode nd2 = idToNode.get(opr2.getInstr_id());
+                    if(nd.regNo != nd2.regNo){
+                        Instruction instr2 = new Instruction(opr2,res,Opcode.move);
+                        instr2.setId(icGen.getInstrTable().size());
+                        predBB2.addInstr(icGen,instr2);
+                    }
+                }else if(opr2.getType() == Result.Type.constant){
+                    Instruction instr2 = new Instruction(opr2,res,Opcode.move);
+                    instr2.setId(icGen.getInstrTable().size());
+                    predBB2.addInstr(icGen, instr2);
+                    InstrNode nd1 = idToNode.get(opr1.getInstr_id());
+                    if(nd.regNo != nd1.regNo){
+                        Instruction instr1 = new Instruction(opr1,res,Opcode.move);
+                        instr1.setId(icGen.getInstrTable().size());
+                        predBB1.addInstr(icGen,instr1);
+                    }
+                }else{
+                    InstrNode nd1 = idToNode.get(opr1.getInstr_id());
+                    InstrNode nd2 = idToNode.get(opr2.getInstr_id());
+                    if(nd.regNo != nd1.regNo){
+                        Instruction instr1 = new Instruction(opr1, res, Opcode.move);
+                        instr1.setId(icGen.getInstrTable().size());
+                        predBB1.addInstr(icGen, instr1);
+                    }
+
+                    if(nd.regNo != nd2.regNo){
+                        Instruction instr2 = new Instruction(opr2, res, Opcode.move);
+                        instr2.setId(icGen.getInstrTable().size());
+                        predBB2.addInstr(icGen, instr2);
+                    }
+
+                }
+            }
+        }
     }
 
     private void simplify(){
@@ -70,8 +144,13 @@ public class RegisterAllocator {
     }
 
     private void select(){
+        IcGenerator icGen =  opti.getPs().getIcGen();
+        CFG cfg = icGen.getCfg(0);
         while(!nds.isEmpty()){
             InstrNode nd = nds.pop();
+            if(nd.getInstrId() == 6){
+                int test = 0;
+            }
             Set<InstrNode> neighbors = graph.get(nd);
             Set<Integer> unavaliableColor = new HashSet<Integer>();
             for(InstrNode nb: neighbors){
@@ -81,8 +160,21 @@ public class RegisterAllocator {
             }
             for(int i = 1;i<regNum;i++){
                 if(!unavaliableColor.contains(i)){
+                    Instruction instr = icGen.getInstruction(nd.getInstrId());
+                    Result res = new Result(Result.Type.register, i);
+                /*    if(instr.getOp()!=Opcode.phi && instr.oprand1!=null &&  instr.oprand2!=null && instr.oprand1.getType() == Result.Type.constant
+                            && instr.oprand2.getType() == Result.Type.constant){
+                        instr.oprand1.setType(Result.Type.register);
+                        instr.oprand1.setRegNo(i);
+                        Instruction load = new Instruction(new Result(Result.Type.constant, instr.oprand1.getValue()),
+                                res, Opcode.move);
+                        load.setId(icGen.getInstrTable().size());
+                        BasicBlock bb = cfg.getBlock(instr.getBbid());
+                        bb.addInstrBefore(icGen,load,instr);
+                    }*/
                     nd.regNo = i;
                     nd.isRemoved = false;
+                    regStat[i] = true;
                     break;
                 }
             }
@@ -100,10 +192,13 @@ public class RegisterAllocator {
         for(Map.Entry<Integer, Set<Integer>> entry : usageTable.entrySet()){
             Set<Integer> visitedBB = new HashSet<>();
             int instr_id = entry.getKey();
-            if(instr_id == 15){
+            if(instr_id==24){
                 int test = 0;
             }
             Instruction var = icGen.getInstruction(instr_id);
+            if(var.isPhi()){
+                phis.add(var.getId());
+            }
             if(var.getBbid() == -1){
                 continue;
             }
@@ -141,8 +236,10 @@ public class RegisterAllocator {
                 LiveOutAtBlock(pred, var, M);
             }
         }else{
-            Instruction pred_instr = ps.getIcGen().getInstruction(instr.getPrev());
-            LiveOutAtStatement(pred_instr, var, M);
+            Instruction pred_instr = instr.getPrev();
+            if(!pred_instr.isDummy()){
+                LiveOutAtStatement(pred_instr, var, M);
+            }
         }
 
     }
@@ -157,8 +254,17 @@ public class RegisterAllocator {
     }
 
     private void LiveOutAtStatement(Instruction instr, Instruction var, Set<Integer> M){
+        IcGenerator icGen = opti.getPs().getIcGen();
         if(instr.isRegisterNeed()){
             addEdges(instr,var);
+       /*     Result opr1 = instr.oprand1;
+            Result opr2 = instr.oprand2;
+            if(opr1!=null && opr1.getType() == Result.Type.instruction){
+                addEdges(icGen.getInstruction(opr1.getInstr_id()), var);
+            }
+            if(opr2!=null && opr2.getType() == Result.Type.instruction){
+                addEdges(icGen.getInstruction(opr2.getInstr_id()),var);
+            }*/
         }
         if(instr.getId()!=var.getId()){
             LiveInAtStatement(instr,var,M);

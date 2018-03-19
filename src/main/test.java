@@ -1,14 +1,13 @@
 package main;
+import backend.CodeGenerator;
+import com.sun.tools.javac.jvm.Code;
 import exceptions.DuplicateDeclaredException;
 import exceptions.NonDeclaredException;
 import exceptions.NotDefinedException;
 import exceptions.NotExpectedException;
 import frontend.*;
 import optimizer.Optimizer;
-import util.CFG;
-import util.IcGenerator;
-import util.Token;
-import util.VcgPrinter;
+import util.*;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -23,6 +22,12 @@ public class test {
         opt = new Optimizer(ps);
     }
 
+    public void testCodeGenerate() throws IOException{
+        CodeGenerator cdGen = new CodeGenerator(opt);
+        int[] programs = cdGen.generate();
+        DLX.load(programs);
+        DLX.execute();
+    }
     public void optimize(){
         opt.optimize();
     }
@@ -34,6 +39,7 @@ public class test {
     public void testOptDt(String prefixname){
         testDt(prefixname);
     }
+
     public void testScanner(scanner sc){
         try{
             Token tk = sc.getNextToken();
@@ -83,20 +89,22 @@ public class test {
 
     public static void main(String[] args)throws IOException, DuplicateDeclaredException, NotExpectedException, NotDefinedException,NonDeclaredException {
     //   String outputname = "test2";
-        String inputname = "testdata/test014.txt";
+        String inputname = "testdata/test008.txt";
         test ts = new test(inputname);
-        String cfgname = "test14_";
-        String dtname = "test14_Dt_";
-        String optcfgname = "test14_opt_";
-        String optdtname = "test14_Dt_opt_";
+        String cfgname = "test8_";
+        String dtname = "test8_Dt_";
+        String optcfgname = "test8_opt_";
+        String optdtname = "test8_Dt_opt_";
         ts.testCfgGraph(cfgname);
         ts.testDt(dtname);
         ts.optimize();
         ts.testOptCfgGraph(optcfgname);
         ts.testOptDt(optdtname);
 
-        String allocatename = "test14_colored_graph";
+        String allocatename = "test8_colored_graph";
         ts.testColorGraph(allocatename);
+
+        ts.testCodeGenerate();
 
     }
 }

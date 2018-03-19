@@ -125,6 +125,7 @@ public class IcGenerator {
 
     public Result constantOp(Opcode op, Result r1, Result r2){
         Result res = null;
+        //TODO: cmp also can be added to this op
         if (op == Opcode.add || op == Opcode.adda) {
             res = new Result(Result.Type.constant, r1.getValue() + r2.getValue());
         } else if (op == Opcode.sub) {
